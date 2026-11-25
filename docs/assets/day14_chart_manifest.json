@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0",
+  "generator": "model.src.day14_report",
+  "source_sha256": {
+    "popularity_validation_metrics.json": "4f4b21ce2a38ede80acb2f9e5464512726f7bcc66a460b0f638ebad9f7f85348",
+    "item_cf_validation_metrics.json": "4e264e03d0b1c301c9f9602896f7d5af672d39a6e79a56c8f690914a343b8a0e",
+    "lightgcn_validation_metrics.json": "b681d35092d97c10dcc4c5151d04cead504034119e6590ed7994d9b21ef13f23",
+    "hybrid_validation_metrics.json": "b5a89b08f15759b6cf0ebbc20376f1512da9c27d0d2b79be2a50e79649c6798b",
+    "controlled_test_metrics.json": "321e5bdb1b460dd2146deb885ef07827e38758997f6bcb75b7da5bb3dfa58a9b"
+  },
+  "chart_sha256": {
+    "model_comparison.svg": "5cedd5ff3a4d7bb9c4085f270b842f4e9c37320dad9638d54e1b2f789df2d997",
+    "hybrid_validation_test.svg": "472964623e28c202ef4bc405d37b1bd49699d6bf054bef59ff4078310fe741f8"
+  },
+  "claims": {
+    "test_used_for_selection": false,
+    "lightgcn_selected_weight": 0.0
+  }
+}

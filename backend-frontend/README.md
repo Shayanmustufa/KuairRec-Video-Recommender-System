@@ -59,3 +59,15 @@ cd .. ; sh scripts/verify_restart.sh                             # feedback/logs
 - `frontend/` — Next.js 14 App Router + TypeScript + Tailwind; Vitest component tests in `src/__tests__`, Playwright UAT in `e2e/`.
 - `scripts/` — serving-bundle generation, Item-CF neighbour export, restart verification.
 - `docs/` — API spec, architecture, wireframes, project board, UAT results, demo script, slides outline, WBS gap log and completion record, `evidence/`.
+
+## Prepare the local English catalog
+
+From `backend-frontend/`, with Python 3.11 and PyTorch 2.6 available:
+
+```powershell
+python -m pip install transformers==4.51.3 sentencepiece==0.2.0 sacremoses==0.1.1
+python scripts/generate_english_catalog.py
+docker compose up -d --build --no-deps --wait frontend
+```
+
+The generator downloads the Helsinki-NLP Chinese-to-English OPUS-MT weights on first use and translates locally. It caches completed translations in the ignored `frontend/public/catalog-english.local.json`. The frontend loads this dictionary at build time and uses English availability labels for missing translations. The original catalog remains available through the API.

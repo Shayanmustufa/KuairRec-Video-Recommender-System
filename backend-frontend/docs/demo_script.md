@@ -31,3 +31,12 @@
 | API down mid-demo | The UI shows “Backend unavailable” — use it to demonstrate the error state, then `docker compose restart backend`. |
 | Slow network/laptop | All data is local; no external calls are made at runtime. |
 | Questions about evidence | `/system` lists every SHA-256; `docs/ABDUL_WBS_GAP_LOG.md` and `docs/ABDUL_WBS_COMPLETION.md` document what was fixed and verified. |
+
+## Six-minute walkthrough for the instructor
+
+1. Open the home page at http://localhost:13000 and load user `0`. Set Top-K to 5. Say, “I'm going to show why one video was ranked first for this user.”
+2. Point to video `10434`, then open the evidence link to video `3289`. Say, “The model learned a link from viewing patterns. The Item-CF contribution was about 0.900 and the popularity contribution was about 0.021. The total ranks this video first.”
+3. Return home and turn on **Cold-start view**. Say, “This shows what a new user would receive when we need to rely on past popularity.” Turn the setting off afterward.
+4. Open **Compare** with user `0`. Show the four rankings, then open **Metrics**. Say, “Popularity scored slightly higher on validation NDCG@10. The hybrid feed still lets us trace the evidence behind individual suggestions.”
+5. Return home and click **Play** on a card. Point to **Recorded “play”**. If asked, open http://localhost:18080/api/v1/feedback?user_id=0&limit=5 to show the saved event. Explain that the button simulates feedback and the rankings were computed offline.
+6. End on **System**. Say, “Python computes the rankings offline, Go serves the ranked list and evidence, Next.js displays it, and PostgreSQL saves feedback and logs.”

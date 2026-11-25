@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError, fetchRecommendations } from '@/lib/api';
-import { formatDuration, formatEvidenceValue, hybridTotals, sortItems } from '@/lib/format';
+import { formatDuration, formatEvidenceValue, hybridTotals, sortItems, videoCategory, videoTitle } from '@/lib/format';
 import { item } from './fixtures';
 
 describe('api client', () => {
@@ -81,5 +81,17 @@ describe('format helpers', () => {
 
   it('sums hybrid contributions per component', () => {
     expect(hybridTotals([item(), item()])).toEqual({ item_cf: 1.8, lightgcn: 0, popularity: 0.04262 });
+  });
+});
+
+describe('English catalog metadata', () => {
+  const translations = { '旅游': 'Travel', '喜剧': 'Comedy', '火车': 'Train' };
+
+  it('translates captions and distinguishes missing from untranslated metadata', () => {
+    expect(videoTitle({ item_id: '1', video: { title: '火车' } }, translations)).toBe('Train');
+    expect(videoTitle({ item_id: '2', video: { title: '摄影' } }, translations)).toBe('Video 2 (English caption unavailable)');
+    expect(videoTitle({ item_id: '3' }, translations)).toBe('Video 3 (no official caption)');
+    expect(videoCategory('旅游', translations)).toBe('Travel');
+    expect(videoCategory('摄影', translations)).toBe('Category translation unavailable');
   });
 });

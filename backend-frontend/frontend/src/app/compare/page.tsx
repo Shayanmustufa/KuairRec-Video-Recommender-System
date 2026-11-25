@@ -1,5 +1,6 @@
 'use client';
 
+import { useCatalogEnglish } from '@/components/CatalogEnglish';
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchComparison, fetchDemoUsers, fetchModelManifest } from '@/lib/api';
@@ -15,6 +16,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function ComparePage() {
+  const translations = useCatalogEnglish();
   const [users, setUsers] = useState<DemoUser[]>([]);
   const [manifest, setManifest] = useState<ModelManifest | null>(null);
   const [userId, setUserId] = useState('');
@@ -143,7 +145,7 @@ export default function ComparePage() {
                             href={`/videos/${encodeURIComponent(item.item_id)}`}
                             className="min-w-0 flex-1 truncate text-xs font-semibold hover:underline"
                           >
-                            {videoTitle(item)}
+                            {videoTitle(item, translations)}
                           </Link>
                           <span className="font-mono text-[11px]">{item.score.toFixed(3)}</span>
                         </div>

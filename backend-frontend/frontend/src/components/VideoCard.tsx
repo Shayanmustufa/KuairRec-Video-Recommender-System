@@ -6,7 +6,8 @@ import type { FeedbackAction, RecommendedItem } from '@/types';
 import { ReasonBadge } from './ReasonBadge';
 import { ScoreBreakdown } from './ScoreBreakdown';
 import { describeError, postFeedback } from '@/lib/api';
-import { formatDuration, videoTitle } from '@/lib/format';
+import { useCatalogEnglish } from '@/components/CatalogEnglish';
+import { formatDuration, videoCategory, videoTitle } from '@/lib/format';
 
 interface Props {
   item: RecommendedItem;
@@ -26,7 +27,8 @@ export function VideoCard({ item, userId, modelId }: Props) {
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const video = item.video;
-  const title = videoTitle(item);
+  const translations = useCatalogEnglish();
+  const title = videoTitle(item, translations);
 
   async function send(action: FeedbackAction) {
     setBusy(true);
@@ -53,7 +55,7 @@ export function VideoCard({ item, userId, modelId }: Props) {
           <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[11px]">
             score {item.score.toFixed(3)}
           </span>
-          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-200">{video?.category || 'Uncategorised'}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-200">{videoCategory(video?.category, translations)}</span>
           <p id={`title-${item.item_id}`} className="mt-1 line-clamp-2 px-2 text-sm font-bold">
             {title}
           </p>

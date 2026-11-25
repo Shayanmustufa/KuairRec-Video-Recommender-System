@@ -23,7 +23,7 @@ describe('UserHistoryPanel', () => {
         user={{ ...base, positive_history_items: 1, recent_positive: [{ item_id: '5', timestamp: 1593878903, watch_ratio: 2.5 }] }}
       />,
     );
-    expect(screen.getByRole('link', { name: 'Video 5' })).toHaveAttribute('href', '/videos/5');
+    expect(screen.getByRole('link', { name: 'Video 5 (no official caption)' })).toHaveAttribute('href', '/videos/5');
     expect(screen.getByText(/2020-07-04 · ratio 2.50/)).toBeInTheDocument();
   });
 });

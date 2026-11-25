@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "reason_codes": {
+    "liked_by_similar_users": {
+      "enabled": true,
+      "rule": "Emit when the recommended item has a positive selected Item-CF neighbor contribution from the user's positive training history.",
+      "required_evidence": ["source_video_id", "similarity", "preference_strength", "contribution", "item_cf_weight"]
+    },
+    "popular_in_training": {
+      "enabled": true,
+      "rule": "Emit when the item has at least one positive training event and the selected popularity weight is positive.",
+      "required_evidence": ["positive_training_event_count", "popularity_weight"]
+    },
+    "extension_model_match": {
+      "enabled": false,
+      "rule": "Disabled because validation selected a zero LightGCN weight.",
+      "required_evidence": ["lightgcn_score", "lightgcn_weight"]
+    },
+    "similar_to_recent": {
+      "enabled": false,
+      "rule": "Not emitted offline because the strongest Item-CF contributor is not necessarily the most recent history item.",
+      "required_evidence": ["source_video_id", "source_timestamp", "similarity"]
+    },
+    "cold_start": {
+      "enabled": true,
+      "rule": "Use the frozen popularity ranking when a user is unknown or has no eligible positive training history.",
+      "required_evidence": ["fallback_model_id", "positive_training_event_count"]
+    }
+  }
+}

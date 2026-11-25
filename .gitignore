@@ -16,3 +16,8 @@ data/processed/*
 *.db
 *.pth
 *.ckpt
+
+*.tsbuildinfo
+.deck-src/
+model/artifacts/*
+!model/artifacts/.gitkeep

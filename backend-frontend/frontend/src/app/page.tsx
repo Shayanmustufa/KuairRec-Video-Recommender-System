@@ -1,5 +1,6 @@
 'use client';
 
+import { useCatalogEnglish } from '@/components/CatalogEnglish';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchDemoUsers, fetchModelManifest, fetchRecommendations, fetchUser } from '@/lib/api';
 import type { DemoUser, ModelManifest, RecommendationResponse, UserDetail } from '@/types';
@@ -23,6 +24,7 @@ const control =
   'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
 export default function HomePage() {
+  const translations = useCatalogEnglish();
   const [users, setUsers] = useState<DemoUser[]>([]);
   const [manifest, setManifest] = useState<ModelManifest | null>(null);
   const [userId, setUserId] = useState('');
@@ -79,7 +81,7 @@ export default function HomePage() {
     };
   }, [userId, topK, excludeSeen, model, coldStart, refreshToken]);
 
-  const items = useMemo(() => sortItems(data?.recommendations ?? [], sortKey), [data, sortKey]);
+  const items = useMemo(() => sortItems(data?.recommendations ?? [], sortKey, translations), [data, sortKey, translations]);
   const isCustom = userId !== '' && !users.some((u) => u.user_id === userId);
 
   function submitCustom(event: React.FormEvent) {
@@ -102,7 +104,7 @@ export default function HomePage() {
       <header>
         <h1 className="text-2xl font-extrabold tracking-tight">Explainable short-video recommendations</h1>
         <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
-          Frozen KuaiRec 2.0 rankings served by the Go API. Every result shows its rank, official catalog metadata, score and the
+          Frozen KuaiRec 2.0 rankings served by the Go API. Every result shows its rank, English catalog metadata, score and the
           machine-readable evidence behind its explanation. The selected model is the validation-tuned hybrid (0.9 Item-CF, 0.1 popularity,
           0 LightGCN).
         </p>

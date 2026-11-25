@@ -66,3 +66,5 @@ Thumbs.db
 playwright-report/
 test-results/
 frontend/next-env.d.ts.bak
+/frontend/public/catalog-english.local.json
+/frontend/public/catalog-english.local.tmp

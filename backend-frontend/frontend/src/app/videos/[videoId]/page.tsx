@@ -6,11 +6,13 @@ import { useParams } from 'next/navigation';
 import { ApiError, fetchSimilarItems, fetchVideoDetails } from '@/lib/api';
 import type { SimilarItem, VideoItem } from '@/types';
 import { EmptyState, ErrorState, Loading } from '@/components/States';
-import { formatDuration } from '@/lib/format';
+import { useCatalogEnglish } from '@/components/CatalogEnglish';
+import { englishCatalogText, formatDuration, videoCategory, videoTitle } from '@/lib/format';
 
 const NOT_PROVIDED = 'not provided in the release';
 
 export default function VideoDetailPage() {
+  const translations = useCatalogEnglish();
   const params = useParams<{ videoId: string }>();
   const videoId = decodeURIComponent(params?.videoId ?? '');
   const [video, setVideo] = useState<VideoItem | null>(null);
@@ -51,11 +53,11 @@ export default function VideoDetailPage() {
 
   const facts: [string, string][] = [
     ['Video ID', video.item_id],
-    ['Categories', video.categories.length ? video.categories.join(' › ') : NOT_PROVIDED],
-    ['Topic tags', video.tags.length ? video.tags.join(', ') : NOT_PROVIDED],
+    ['Categories', video.categories.length ? video.categories.map((value) => videoCategory(value, translations)).join(' › ') : NOT_PROVIDED],
+    ['Topic tags', video.tags.length ? video.tags.map((value) => englishCatalogText(value, translations, NOT_PROVIDED, 'Tag translation unavailable')).join(', ') : NOT_PROVIDED],
     ['Author ID', video.author_id || NOT_PROVIDED],
     ['Upload date', video.upload_date || NOT_PROVIDED],
-    ['Video type', video.video_type || NOT_PROVIDED],
+    ['Video type', englishCatalogText(video.video_type, translations, NOT_PROVIDED)],
     ['Duration', formatDuration(video.duration_seconds)],
     ['Positive training events', `${video.positive_training_events.toLocaleString('en-US')} (training events with watch_ratio > 2.0)`],
   ];
@@ -67,8 +69,8 @@ export default function VideoDetailPage() {
       </Link>
       <article className="grid overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:grid-cols-3 dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-col justify-center bg-gradient-to-br from-slate-700 to-slate-900 p-8 text-white">
-          <span className="w-fit rounded bg-indigo-600 px-2.5 py-1 text-xs font-bold uppercase">{video.category || 'Uncategorised'}</span>
-          <h1 className="mt-4 text-xl font-extrabold leading-snug">{video.title || `Video ${video.item_id}`}</h1>
+          <span className="w-fit rounded bg-indigo-600 px-2.5 py-1 text-xs font-bold uppercase">{videoCategory(video.category, translations)}</span>
+          <h1 className="mt-4 text-xl font-extrabold leading-snug">{videoTitle({ item_id: video.item_id, video }, translations)}</h1>
           {!video.has_caption && <p className="mt-2 text-xs text-slate-300">The release has no caption for this video.</p>}
         </div>
         <div className="p-8 md:col-span-2">
@@ -82,7 +84,7 @@ export default function VideoDetailPage() {
             ))}
           </dl>
           <p className="mt-4 text-xs text-slate-600 dark:text-slate-400">
-            Metadata comes from <code>kuairec_caption_category.csv</code> and the first daily row of <code>item_daily_features.csv</code>. A
+            Captions, categories, and tags are shown in English translation where available. The original metadata comes from <code>kuairec_caption_category.csv</code> and the first daily row of <code>item_daily_features.csv</code>. A
             positive interaction in this project means <strong>watch_ratio &gt; 2.0</strong> — a derived proxy, not an official like label.
           </p>
         </div>
@@ -110,9 +112,9 @@ export default function VideoDetailPage() {
               >
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-                    {item.video?.category || 'Uncategorised'}
+                    {videoCategory(item.video?.category, translations)}
                   </span>
-                  <h3 className="mt-1 line-clamp-2 text-sm font-bold">{item.video?.title || `Video ${item.item_id}`}</h3>
+                  <h3 className="mt-1 line-clamp-2 text-sm font-bold">{videoTitle(item, translations)}</h3>
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-xs dark:border-slate-800">
                   <span className="font-mono">cosine {item.score.toFixed(4)}</span>

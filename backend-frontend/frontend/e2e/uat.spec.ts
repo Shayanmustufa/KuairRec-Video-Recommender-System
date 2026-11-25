@@ -3,7 +3,7 @@ import path from 'node:path';
 
 // End-user acceptance scenarios (WBS Day 11 smoke test, Day 13 UAT). Screenshots
 // are written to docs/evidence/screenshots as demo evidence.
-const SHOTS = path.resolve(__dirname, '../../docs/evidence/screenshots');
+const SHOTS = process.env.E2E_SCREENSHOT_DIR || path.resolve(__dirname, '../../docs/evidence/screenshots');
 
 async function shot(page: Page, name: string) {
   const project = test.info().project.name.replace('-chromium', '');

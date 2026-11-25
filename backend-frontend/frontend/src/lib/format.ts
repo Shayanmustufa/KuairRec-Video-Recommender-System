@@ -49,15 +49,30 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} s`;
 }
 
-export function videoTitle(item: { item_id: string; video?: { title: string } }): string {
-  return item.video?.title || `Video ${item.item_id} (no official caption)`;
+export type CatalogTranslations = Readonly<Record<string, string>>;
+const HAN = new RegExp('\\p{Script=Han}', 'u');
+
+export function englishCatalogText(value: string | undefined, translations: CatalogTranslations, missing: string, unavailable = 'English translation unavailable'): string {
+  const source = value?.trim();
+  if (!source) return missing;
+  if (!HAN.test(source)) return source;
+  const translated = translations[source]?.trim();
+  return translated && !HAN.test(translated) ? translated : unavailable;
+}
+
+export function videoCategory(category: string | undefined, translations: CatalogTranslations): string {
+  return englishCatalogText(category, translations, 'Uncategorised', 'Category translation unavailable');
+}
+
+export function videoTitle(item: { item_id: string; video?: { title: string } }, translations: CatalogTranslations = {}): string {
+  return englishCatalogText(item.video?.title, translations, `Video ${item.item_id} (no official caption)`, `Video ${item.item_id} (English caption unavailable)`);
 }
 
 export type SortKey = 'rank' | 'score' | 'popularity' | 'category';
 
 /** Client-side sort of an already-ranked list. Ranks are preserved so the
  * model's order stays visible; this only changes the display order. */
-export function sortItems(items: RecommendedItem[], key: SortKey): RecommendedItem[] {
+export function sortItems(items: RecommendedItem[], key: SortKey, translations: CatalogTranslations = {}): RecommendedItem[] {
   const copy = [...items];
   switch (key) {
     case 'score':
@@ -65,7 +80,7 @@ export function sortItems(items: RecommendedItem[], key: SortKey): RecommendedIt
     case 'popularity':
       return copy.sort((a, b) => (b.video?.positive_training_events ?? 0) - (a.video?.positive_training_events ?? 0) || a.rank - b.rank);
     case 'category':
-      return copy.sort((a, b) => (a.video?.category ?? '').localeCompare(b.video?.category ?? '') || a.rank - b.rank);
+      return copy.sort((a, b) => videoCategory(a.video?.category, translations).localeCompare(videoCategory(b.video?.category, translations), 'en') || a.rank - b.rank);
     default:
       return copy.sort((a, b) => a.rank - b.rank);
   }

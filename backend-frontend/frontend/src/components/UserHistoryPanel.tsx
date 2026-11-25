@@ -1,10 +1,13 @@
 import React from 'react';
+import { useCatalogEnglish } from '@/components/CatalogEnglish';
+import { videoTitle } from '@/lib/format';
 import Link from 'next/link';
 import type { UserDetail } from '@/types';
 
 /** Evidence panel: the user's history summary and most recent positive videos,
  * which are the inputs the Item-CF reasons point to. */
 export function UserHistoryPanel({ user }: { user: UserDetail }) {
+  const translations = useCatalogEnglish();
   return (
     <section
       aria-labelledby="history-heading"
@@ -25,7 +28,7 @@ export function UserHistoryPanel({ user }: { user: UserDetail }) {
                 className="truncate text-indigo-700 underline dark:text-indigo-300"
                 href={`/videos/${encodeURIComponent(event.item_id)}`}
               >
-                {event.video?.title || `Video ${event.item_id}`}
+                {videoTitle(event, translations)}
               </Link>
               <span className="shrink-0 font-mono">
                 {new Date(event.timestamp * 1000).toISOString().slice(0, 10)} · ratio {event.watch_ratio.toFixed(2)}
