@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kuairec}
+      POSTGRES_USER: ${POSTGRES_USER:-kuairec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in backend-frontend/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kuairec} -d ${POSTGRES_DB:-kuairec}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kuairec-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DATA_DIR=/app/serving_data
+      - DATABASE_URL=postgres://${POSTGRES_USER:-kuairec}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in backend-frontend/.env}@postgres:5432/${POSTGRES_DB:-kuairec}?sslmode=disable
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      - DEFAULT_TOP_K=10
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kuairec-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - API_INTERNAL_URL=http://backend:8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

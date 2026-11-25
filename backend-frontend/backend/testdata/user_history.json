@@ -1,0 +1,63 @@
+{
+  "user_1001": [
+    {
+      "item_id": "v_101",
+      "timestamp": "2026-02-01T14:10:00Z",
+      "watch_ratio": 1.45,
+      "liked": true
+    },
+    {
+      "item_id": "v_102",
+      "timestamp": "2026-02-02T19:22:00Z",
+      "watch_ratio": 1.30,
+      "liked": true
+    },
+    {
+      "item_id": "v_115",
+      "timestamp": "2026-02-03T21:05:00Z",
+      "watch_ratio": 1.25,
+      "liked": false
+    }
+  ],
+  "user_1002": [
+    {
+      "item_id": "v_103",
+      "timestamp": "2026-02-01T09:12:00Z",
+      "watch_ratio": 1.85,
+      "liked": true
+    },
+    {
+      "item_id": "v_104",
+      "timestamp": "2026-02-02T18:40:00Z",
+      "watch_ratio": 1.55,
+      "liked": true
+    },
+    {
+      "item_id": "v_109",
+      "timestamp": "2026-02-04T11:20:00Z",
+      "watch_ratio": 1.10,
+      "liked": true
+    }
+  ],
+  "user_1003": [
+    {
+      "item_id": "v_105",
+      "timestamp": "2026-02-01T12:00:00Z",
+      "watch_ratio": 1.30,
+      "liked": true
+    },
+    {
+      "item_id": "v_106",
+      "timestamp": "2026-02-03T13:45:00Z",
+      "watch_ratio": 1.60,
+      "liked": true
+    },
+    {
+      "item_id": "v_107",
+      "timestamp": "2026-02-05T08:30:00Z",
+      "watch_ratio": 1.90,
+      "liked": true
+    }
+  ],
+  "user_cold_start": []
+}

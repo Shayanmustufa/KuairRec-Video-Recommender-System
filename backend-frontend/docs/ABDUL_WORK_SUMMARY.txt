@@ -1,0 +1,24 @@
+Abdul work review (against AQ-01 to AQ-23 in DOC-20261105-WA0002.pdf)
+
+Missing or incomplete: backend test/runtime evidence, Docker image build and clean
+startup, browser/mobile UAT, screenshots, and final deployment handoff evidence.
+The original UAT notes claimed passes using sample IDs and metrics that did not
+match the actual serving artifacts. A few implementation issues also remained:
+PostgreSQL used an invalid DATETIME type, offline recommendation results skipped
+runtime filters, Compare changed shared model state, and the UI expected stale
+model IDs and metric fields. The demo user list also missed most users covered by
+the comparison export, so switching models could display hybrid predictions.
+
+Completed in this pass: corrected the database schema and added a memory adapter
+for unit tests; fixed recommendation filters and comparison isolation; aligned
+model IDs, metrics, similar-item details, and demo user selection to the actual
+artifacts; improved
+readiness, latency, and CORS handling; corrected Compose/Docker configuration;
+and updated the API, architecture, demo, WBS, and UAT documents. Added an audit
+with AQ-by-AQ findings and removed unsupported PASS claims.
+
+Verified: frontend production build passed; item-similarity export passed; Docker
+Compose configuration parsed successfully. Not verified: Go tests, Docker build
+or startup, browser UAT, mobile behavior, and deployment smoke test. This
+environment currently has no Go executable and Docker Desktop's Linux engine is
+unavailable.

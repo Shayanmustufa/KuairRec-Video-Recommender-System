@@ -1,0 +1,105 @@
+{
+  "evaluation_protocol": {
+    "dataset": "KuaiRec 2.0",
+    "training_split": "chronological 70%",
+    "validation_split": "chronological 15%",
+    "test_split": "chronological 15%",
+    "target_threshold": "watch_ratio > 2.0",
+    "candidate_pool": "full eligible catalog minus seen items",
+    "evaluation_users_count": 7176,
+    "catalog_size": 8418
+  },
+  "overall_metrics": [
+    {
+      "id": "popularity-positive-event-count-v1",
+      "name": "Popularity baseline",
+      "type": "baseline",
+      "description": "Positive training-event count; cold-start fallback.",
+      "is_fallback": true,
+      "metrics": {
+        "recall_at_10": 0.015693085833087983,
+        "recall_at_20": 0.02404232121763642,
+        "ndcg_at_10": 0.016762776321758713,
+        "ndcg_at_20": 0.019447737172738302,
+        "hit_rate_at_10": 0.09924567371690578,
+        "hit_rate_at_20": 0.15411921313415175,
+        "precision_at_10": 0.013637035941428724,
+        "precision_at_20": 0.011913918059458507,
+        "catalog_coverage": 0.026372059871703494
+      }
+    },
+    {
+      "id": "item-cf-cosine-v1",
+      "name": "Item-CF",
+      "type": "collaborative",
+      "description": "Validation-tuned cosine Item-CF.",
+      "is_fallback": false,
+      "metrics": {
+        "recall_at_10": 0.01222774262368133,
+        "recall_at_20": 0.020437998929475253,
+        "ndcg_at_10": 0.015370226124512429,
+        "ndcg_at_20": 0.018088907352229,
+        "hit_rate_at_10": 0.10885963614849874,
+        "hit_rate_at_20": 0.18429226445792043,
+        "precision_at_10": 0.0128679189469013,
+        "precision_at_20": 0.012461174382487573,
+        "catalog_coverage": 0.6617961511047755
+      }
+    },
+    {
+      "id": "lightgcn-validation-selected-v1",
+      "name": "LightGCN (rejected experiment)",
+      "type": "experimental",
+      "description": "Evaluated on validation and assigned zero final weight.",
+      "is_fallback": false,
+      "metrics": {
+        "recall_at_10": 0.008589489845232043,
+        "recall_at_20": 0.015792837840573073,
+        "ndcg_at_10": 0.00927864726498469,
+        "ndcg_at_20": 0.012076638680104673,
+        "hit_rate_at_10": 0.06581866587782872,
+        "hit_rate_at_20": 0.12483360449637627,
+        "precision_at_10": 0.007809495636740184,
+        "precision_at_20": 0.008134891288270895,
+        "catalog_coverage": 0.5708006652411499
+      }
+    },
+    {
+      "id": "hybrid-validation-selected-v1",
+      "name": "Selected hybrid",
+      "type": "hybrid",
+      "description": "Frozen 0.1 popularity + 0.9 Item-CF + 0.0 LightGCN.",
+      "is_fallback": false,
+      "weights": {
+        "alpha_cf": 0.9,
+        "beta_extension": 0.0,
+        "gamma_popularity": 0.1
+      },
+      "metrics": {
+        "recall_at_10": 0.014070915248855332,
+        "recall_at_20": 0.02910087091006475,
+        "ndcg_at_10": 0.01644838418481493,
+        "ndcg_at_20": 0.021915693896201197,
+        "hit_rate_at_10": 0.11388847803579352,
+        "hit_rate_at_20": 0.2086969383227333,
+        "precision_at_10": 0.013829315190060644,
+        "precision_at_20": 0.01493122319183552,
+        "catalog_coverage": 0.622832026609646
+      }
+    }
+  ],
+  "controlled_test": {
+    "model_id": "hybrid-validation-selected-v1",
+    "recall_at_10": 0.012742452058709774,
+    "recall_at_20": 0.02547207953153608,
+    "ndcg_at_10": 0.015097720008499666,
+    "ndcg_at_20": 0.019188187669053905,
+    "hit_rate_at_10": 0.10903277378097521,
+    "hit_rate_at_20": 0.19872102318145485,
+    "precision_at_10": 0.012901678657074343,
+    "precision_at_20": 0.013397282174260585,
+    "catalog_coverage": 0.6385127108576859,
+    "users_metric_eligible": 6255,
+    "users_without_eligible_relevant_item": 921
+  }
+}
