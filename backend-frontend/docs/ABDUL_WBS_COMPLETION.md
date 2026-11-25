@@ -56,7 +56,7 @@ Status key: **Done** = implemented and verified by a test or observed run · **D
 | 12 | Compose deployment, proxy/CORS/env, clean restart, instructions | rewrite bug fixed (build arg); ports configurable; clean-clone deploy PASS | Done |
 | 13 | ≥5 UAT scenarios, routes/mobile, fixes, screenshots | 11 scenarios × 2 viewports; 22 screenshots | Done |
 | 14 | Demo flow + screenshots, architecture/API docs, per-screen explanation | `demo_script.md`, `ARCHITECTURE.md`, `API_SPEC.md` | Done |
-| 14 | Presentation slides | `presentation_slides.md` content updated to the verified numbers; slide-deck file format awaits a decision | Open |
+| 14 | Presentation slides | 12-slide Claude Slides deck (https://claude.ai/artifact/AeM7mkyrUvmJfw6Dd51VEo, private until the owner shares it; exports to PPTX/PDF) built from `presentation_slides.md` with UAT screenshots | Done |
 | 15 | Deployment smoke test, frozen images/compose | images tagged `kuairec-*:1.0.0`, base images pinned | Done |
 | 15 | Backup run instructions, fallback screenshots, talking points | README backup path; `demo_script.md` fallback plans | Done |
 | 15 | Second-machine startup | clean clone on the same host instead (no second machine available) | Done (limited) |

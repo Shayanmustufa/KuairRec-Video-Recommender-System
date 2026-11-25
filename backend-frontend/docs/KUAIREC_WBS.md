@@ -27,7 +27,7 @@ Detailed findings: [ABDUL_WBS_GAP_LOG.md](./ABDUL_WBS_GAP_LOG.md). Resolution an
 | AQ-19 | 11 | API/frontend tests, Docker build, Playwright, mobile, console | Done | `user_acceptance_tests.md` |
 | AQ-20 | 12 | Compose deployment, proxy/CORS/env, clean restart, instructions | Done | `clean_checkout_deploy.txt`, README |
 | AQ-21 | 13 | ≥5 UAT scenarios, mobile, fixes, screenshots | Done | 21/21 Playwright passes, 22 screenshots |
-| AQ-22 | 14 | Demo flow, slides, architecture/API docs, per-screen notes | Done except slide-deck file | `demo_script.md`, `presentation_slides.md` |
+| AQ-22 | 14 | Demo flow, slides, architecture/API docs, per-screen notes | Done | `demo_script.md`, `presentation_slides.md`, deck https://claude.ai/artifact/AeM7mkyrUvmJfw6Dd51VEo |
 | AQ-23 | 15 | Smoke test, frozen images, backup plan, second machine, talking points | Done (second machine replaced by clean-clone test) | `clean_checkout_deploy.txt`, `demo_script.md` |
 
 Shared items still open: Syed's evidence-based review of this branch (WBS §11) and the merge decision.

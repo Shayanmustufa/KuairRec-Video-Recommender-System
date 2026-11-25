@@ -23,5 +23,7 @@ started; feedback and logs survive API and full-stack restarts; clean-clone
 deployment; 21/21 Playwright UAT scenarios on desktop and mobile with 22
 screenshots.
 
-Open: slide-deck file format; Syed's review (WBS section 11); a physical second
+Deck: 12-slide Claude Slides deck, https://claude.ai/artifact/AeM7mkyrUvmJfw6Dd51VEo (private until shared).
+
+Open: Syed's review (WBS section 11); a physical second
 machine (clean-clone test used instead); merge to main.

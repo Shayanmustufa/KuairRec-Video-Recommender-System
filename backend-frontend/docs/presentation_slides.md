@@ -1,5 +1,7 @@
 # Presentation outline (content source for the slide deck)
 
+The deck built from this outline: https://claude.ai/artifact/AeM7mkyrUvmJfw6Dd51VEo (Claude Slides; private until the owner shares it; Share › Export gives PPTX or PDF).
+
 All numbers come from `backend/serving_data/metrics_summary.json` and match the `/metrics` page. Screenshot file names refer to `docs/evidence/screenshots/`.
 
 ## 1. Title
