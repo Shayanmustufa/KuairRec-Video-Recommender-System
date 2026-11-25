@@ -1,0 +1,4 @@
+  Slow test file: [desktop-chromium] › uat.spec.ts (17.3s)
+  Consider splitting slow test files to speed up parallel execution
+  1 skipped
+  21 passed (41.1s)

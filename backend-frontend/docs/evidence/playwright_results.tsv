@@ -1,0 +1,23 @@
+project	scenario	status
+desktop-chromium	UAT-01 known user receives top-10 recommendations with visible evidence	passed
+desktop-chromium	UAT-02 unknown user gets an explicit cold-start fallback	passed
+desktop-chromium	UAT-03 known user without positive history is labelled and falls back	passed
+desktop-chromium	UAT-04 cold-start toggle, top-K, sort and refresh controls work	passed
+desktop-chromium	UAT-05 per-request model switch and comparison route	passed
+desktop-chromium	UAT-06 feedback is persisted and queryable	passed
+desktop-chromium	UAT-07 video detail shows official metadata and Item-CF neighbours	passed
+desktop-chromium	UAT-08 metrics and system routes show evaluation and live status	passed
+desktop-chromium	UAT-09 backend-unavailable and timeout states	passed
+desktop-chromium	UAT-10 keyboard basics: skip link and labelled controls	passed
+desktop-chromium	UAT-11 every route renders without console errors or horizontal overflow	passed
+mobile-chromium	UAT-01 known user receives top-10 recommendations with visible evidence	passed
+mobile-chromium	UAT-02 unknown user gets an explicit cold-start fallback	passed
+mobile-chromium	UAT-03 known user without positive history is labelled and falls back	passed
+mobile-chromium	UAT-04 cold-start toggle, top-K, sort and refresh controls work	passed
+mobile-chromium	UAT-05 per-request model switch and comparison route	passed
+mobile-chromium	UAT-06 feedback is persisted and queryable	passed
+mobile-chromium	UAT-07 video detail shows official metadata and Item-CF neighbours	passed
+mobile-chromium	UAT-08 metrics and system routes show evaluation and live status	passed
+mobile-chromium	UAT-09 backend-unavailable and timeout states	passed
+mobile-chromium	UAT-10 keyboard basics: skip link and labelled controls	skipped
+mobile-chromium	UAT-11 every route renders without console errors or horizontal overflow	passed
