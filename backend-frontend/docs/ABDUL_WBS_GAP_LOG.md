@@ -16,6 +16,8 @@ Status key: **Done** = implemented and evidenced · **Partial** = present but in
 6. **Missing Day 8/9/10/11 items:** rate limiting, sorting/refresh controls, hybrid explanation panel, timeout / backend-unavailable UI states, unknown-user and no-history UI states, queryable logs, frontend unit/component tests, Playwright smoke test, ESLint config.
 7. **Unsupported UI claims:** hero says "Go Chi / Fast API backend" and "LightGCN graph embeddings" (neither used); video page states the target is "watch ratio ≥ 1.0" (actual: `watch_ratio > 2.0`), shows `Invalid Date`, `0 seconds`, empty author, `0%` watch ratio, and asserts "strong intra-category co-occurrence"; positive training-event counts are labelled "views"; `/system` shows a fabricated "< 1.5 ms" latency when no data.
 8. **Runtime acceptance never observed:** no Docker build/start, no restart persistence test, no browser UAT, no screenshots.
+9. **Docker deployment could not have worked (found while fixing).** `next.config.js` built the `/api/:path*` rewrite destination as the bare `API_INTERNAL_URL` origin, so with Compose's `API_INTERNAL_URL=http://backend:8080` every API call would be proxied to `/`; Next.js also compiles rewrites at build time, but the URL was only supplied at runtime.
+10. **Checksum/line-ending hazard (found while fixing).** The Python export scripts wrote JSON with Windows CRLF while git stored LF, so any checksum recorded for those files would not match a fresh checkout.
 
 ## Item-by-item (Abdul's WBS bullets)
 

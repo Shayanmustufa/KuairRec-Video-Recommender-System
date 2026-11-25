@@ -1,25 +1,37 @@
-# User acceptance test plan
+# User acceptance tests — results
 
-**Execution status: pending observed run.** The previous copy marked five scenarios PASS but named fictional users/videos, expected metrics absent from the frozen evaluation artifact, and claimed SQLite while the service uses PostgreSQL. Those outcomes were not accepted as test evidence. Use the steps below after starting the Compose stack; record date, browser, screenshots, request IDs, and observed values before marking a scenario passed.
+**Run:** 2026-11-25 against the Docker Compose stack (PostgreSQL 16.6, Go API, Next.js standalone) built from branch `worktree-abdul-wbs-completion`.
+**How:** `frontend/e2e/uat.spec.ts` (Playwright 1.49.1, Chromium 131) in two projects — desktop 1440×900 and mobile Pixel 7. Raw results: `evidence/playwright_results.tsv`, `evidence/playwright_summary.txt`. Screenshots: `evidence/screenshots/{desktop,mobile}-uat*.png`.
 
-## Start
+**Result: 21 passed, 0 failed, 1 skipped by design** (keyboard scenario runs on desktop only).
 
-1. Copy `.env.example` to `.env` and set `POSTGRES_PASSWORD`.
-2. Run `docker compose up --build` from `backend-frontend/`.
-3. Open `http://localhost:3000`; check `http://localhost:8080/healthz` and `/readyz`.
+| ID | Scenario | Checks | Desktop | Mobile |
+|---|---|---|---|---|
+| UAT-01 | Known user top-10 | user `0` → 10 cards; “Personalised” banner; model `hybrid-validation-selected-v1`; rank label; `liked_by_similar_users` evidence; score breakdown; hybrid panel; user evidence panel; no console errors | PASS | PASS |
+| UAT-02 | Unknown user | ID `brand-new-user` → “Unknown user” banner, `cold_start` reason, `fallback: yes` | PASS | PASS |
+| UAT-03 | No positive history | demo user `735` → “No positive history” banner and fallback | PASS | PASS |
+| UAT-04 | Controls | top-K 10→5, sort by popularity, refresh, cold-start toggle → “Cold-start view requested” | PASS | PASS |
+| UAT-05 | Model switch + compare | Item-CF for this request shows `split: validation`; `/models/current` default unchanged; `/compare` shows 4 model columns | PASS | PASS |
+| UAT-06 | Feedback | “Play” → “Recorded”; `GET /api/v1/feedback` returns the event with a request ID | PASS | PASS |
+| UAT-07 | Video detail | `/videos/5434` official metadata, `watch_ratio > 2.0` definition, Item-CF neighbours; `/videos/999999` → not-in-catalog state | PASS | PASS |
+| UAT-08 | Metrics + system | controlled-test section and split summary; readiness `ready`; “checksums verified at load: yes” | PASS | PASS |
+| UAT-09 | Failure states | API connection refused → “Backend unavailable”; hung API → “did not respond in time” after 8 s | PASS | PASS |
+| UAT-10 | Keyboard basics | first Tab focuses “Skip to content”; all controls have labels | PASS | skipped |
+| UAT-11 | All routes | `/`, `/compare`, `/metrics`, `/system`, `/videos/5434`: heading visible, no console errors, no horizontal overflow | PASS | PASS |
 
-## Scenarios
+## Other runtime checks
 
-| ID | Scenario | Expected check | Current status |
-|---|---|---|---|
-| UAT-01 | Known saved user | Choose a user returned by `/api/v1/users`; recommendations load, each item has rank/catalog metadata, and model ID matches the manifest. | Pending browser run |
-| UAT-02 | Cold start | Enable the cold-start control or use an unknown ID; response has `fallback: true`, the manifest's popularity model ID, and `cold_start` reasons. | Pending browser run |
-| UAT-03 | Seen/candidate filtering | Verify the offline saved list follows the recorded candidate protocol; if `user_history.json` is configured, request `exclude_seen: true` and confirm history IDs are absent. | Pending; serving bundle has no user history file |
-| UAT-04 | Model switching/comparison | Switch among the exact manifest IDs; `/api/v1/compare` returns all four model keys and does not change `/api/v1/models/current`. | Pending Go/API run |
-| UAT-05 | Feedback persistence | Submit each supported action, restart the API/container, and confirm PostgreSQL retains the events and `/metrics` reflects feedback counts. | Pending Compose run |
-| UAT-06 | Video detail similarity | Open a valid catalog ID and confirm `/similar` returns Item-CF neighbors in descending score order; unknown IDs return 404. | Pending Go/API run |
-| UAT-07 | Responsive and error states | Check narrow viewport, loading/empty/backend-down states, keyboard controls, and browser console. | Pending browser run |
+| Check | Result | Evidence |
+|---|---|---|
+| Feedback and logs survive API restart and `docker compose down`/`up` | PASS | `evidence/restart_verification.txt` |
+| PostgreSQL integration test (write, reconnect, read) | PASS | `evidence/postgres_integration_test.txt` |
+| Fresh clone → build → start → smoke (checksums verified on a Windows checkout) | PASS | `evidence/clean_checkout_deploy.txt` |
+| Go: `gofmt`, `go vet`, `go test ./...` (27 tests + 11 subtests) | PASS | local run |
+| Frontend: lint, typecheck, Vitest (20 tests), production build | PASS | local run |
 
-## Automated checks
+## Known limitations
 
-The Go test suite lives under `backend/`; frontend type-check and production build use `npm run build`. At the time this document was updated, the frontend build passed. Go tests and Docker startup were not run because the current environment has no Go executable; browser UAT also has no recorded run evidence. Do not mark a row PASS until its behavior is observed and evidence is saved.
+- A physically separate second machine was not available; the clean-clone deployment is the closest check performed.
+- Non-selected models (Item-CF, popularity, LightGCN) are servable only for the 100 demo users with exported comparison lists.
+- Recent-positive history is exported for demo users only; for others the evidence panel shows counts and each reason links its source video.
+- Feedback is stored for analysis; the frozen models are not retrained online.

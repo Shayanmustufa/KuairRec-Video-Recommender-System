@@ -1,0 +1,17 @@
+Clean-checkout deployment check (WBS Day 12 "clean machine restart"; proxy for Day 15 "second machine")
+Date: 2026-11-25. Host: Windows 11, Docker Desktop 29.8.2 (Linux engine), git core.autocrlf=true.
+
+1. git clone --branch worktree-abdul-wbs-completion <repo> <empty temp dir>
+2. cp .env.example .env; set POSTGRES_PASSWORD, API_PORT=28080, WEB_PORT=23000
+3. docker compose -p kuairec-clean up -d --build   (fresh project, fresh PostgreSQL volume)
+
+Observed:
+- backend log: "serving bundle loaded" catalog_items=8418 known_users=7176 bundle_checksums_verified=true
+  (the committed JSON bytes match the manifest SHA-256 after a Windows checkout)
+- GET /readyz -> {"status":"ready","checks":{"catalog":"ok","database":"ok","recommendations":"ok"},"database_kind":"postgresql"}
+- POST /api/v1/recommendations through the Next.js proxy (port 23000):
+    user "new-person" -> model popularity-positive-event-count-v1, fallback=true, fallback_reason=unknown_user, reasons [cold_start]
+    user "0"          -> model hybrid-validation-selected-v1, fallback=false, reasons [liked_by_similar_users, popular_in_training]
+4. docker compose -p kuairec-clean down -v
+
+Not performed: a physically separate second machine (none available in this environment).

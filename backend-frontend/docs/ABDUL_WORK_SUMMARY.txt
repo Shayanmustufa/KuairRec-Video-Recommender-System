@@ -1,24 +1,27 @@
-Abdul work review (against AQ-01 to AQ-23 in DOC-20261105-WA0002.pdf)
+Abdul work review against DOC-20261105-WA0002.pdf — 2026-11-25
 
-Missing or incomplete: backend test/runtime evidence, Docker image build and clean
-startup, browser/mobile UAT, screenshots, and final deployment handoff evidence.
-The original UAT notes claimed passes using sample IDs and metrics that did not
-match the actual serving artifacts. A few implementation issues also remained:
-PostgreSQL used an invalid DATETIME type, offline recommendation results skipped
-runtime filters, Compare changed shared model state, and the UI expected stale
-model IDs and metric fields. The demo user list also missed most users covered by
-the comparison export, so switching models could display hybrid predictions.
+Found (as received): 10 of 12 Go tests failing (missing fixtures); every served
+explanation was a generic popularity reason although the model is 90% Item-CF;
+fabricated scoring paths (LightGCN heuristic, views x 0 popularity, constant
+evidence); unknown users indistinguishable from cold start; home page changed
+the model for all users; no rate limiting, sort/refresh, hybrid panel, timeout
+or backend-unavailable states, frontend tests, Playwright, ESLint config, wire-
+frames or project board; video page stated the wrong target (>= 1.0 instead of
+> 2.0) and showed invented fields; Docker rewrite bug would break every API call;
+nothing had been run (Go, Docker, browser).
 
-Completed in this pass: corrected the database schema and added a memory adapter
-for unit tests; fixed recommendation filters and comparison isolation; aligned
-model IDs, metrics, similar-item details, and demo user selection to the actual
-artifacts; improved
-readiness, latency, and CORS handling; corrected Compose/Docker configuration;
-and updated the API, architecture, demo, WBS, and UAT documents. Added an audit
-with AQ-by-AQ findings and removed unsupported PASS claims.
+Done: serving bundle regenerated from Syed's frozen artifacts with per-item
+evidence and component scores, checksummed and verified at start-up; Go API
+rewritten on chi with validation, per-request model, user states, request-ID
+logs persisted to PostgreSQL, queryable logs, rate limiting and CORS; frontend
+rewritten with honest metadata, all WBS states/controls/panels and accessibility
+basics; ESLint/Prettier, Vitest and Playwright added; versions pinned.
 
-Verified: frontend production build passed; item-similarity export passed; Docker
-Compose configuration parsed successfully. Not verified: Go tests, Docker build
-or startup, browser UAT, mobile behavior, and deployment smoke test. This
-environment currently has no Go executable and Docker Desktop's Linux engine is
-unavailable.
+Verified: go vet/gofmt/go test (27 tests + 11 subtests); PostgreSQL integration
+test; lint/typecheck/20 Vitest tests/production build; Docker images built and
+started; feedback and logs survive API and full-stack restarts; clean-clone
+deployment; 21/21 Playwright UAT scenarios on desktop and mobile with 22
+screenshots.
+
+Open: slide-deck file format; Syed's review (WBS section 11); a physical second
+machine (clean-clone test used instead); merge to main.

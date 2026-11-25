@@ -1,50 +1,44 @@
-# KuaiRec recommender presentation outline
+# Presentation outline (content source for the slide deck)
 
-## 1. Goal and ownership
+All numbers come from `backend/serving_data/metrics_summary.json` and match the `/metrics` page. Screenshot file names refer to `docs/evidence/screenshots/`.
 
-- Explainable short-video recommendations built from the KuaiRec 2.0 Big Matrix.
-- Abdul Qadir Satti: Go API, Next.js demo, PostgreSQL persistence, integration, and delivery.
-- Syed Shayan Mustufa Rizvi: data preparation, model experiments, evaluation, and scientific reporting.
+## 1. Title
+KuaiRec Explainable Short-Video Recommender — Abdul Qadir Satti (23K-0674, BCS-7B), Syed Shayan Mustufa Rizvi (23K-0924, BCS-7A).
 
-## 2. System architecture
+## 2. Problem and goal
+Explainable recommendations on KuaiRec 2.0 with a leakage-safe evaluation and an end-to-end demo. Relevance proxy: `watch_ratio > 2.0` (not an explicit like label).
 
-- Python trains/evaluates offline and exports serving artifacts.
-- Go loads the catalog, manifest, saved user recommendations, comparisons, fallback list, and Item-CF neighbors.
-- Next.js presents recommendation, video, compare, metrics, and system routes.
-- PostgreSQL stores feedback and recommendation request metadata.
+## 3. Architecture
+Python offline pipeline → frozen, checksummed artifacts → Go API (chi) → Next.js; PostgreSQL for feedback and logs. Diagram: `ARCHITECTURE.md`. Screenshot: `desktop-uat08-system.png`.
 
-## 3. Model results
+## 4. Data and protocol
+7,176 users, 8,418 eligible items; per-user chronological 70/15/15; full-catalog candidates minus seen items; seed 2026.
 
-- Target: derived positive event `watch_ratio > 2.0`; this is not an explicit satisfaction label.
-- Selected validation hybrid: 0.90 Item-CF + 0.00 LightGCN + 0.10 popularity.
-- LightGCN was evaluated but rejected as a standalone model and receives zero weight in the selected hybrid.
-- The controlled test result is reported separately from validation; only the selected hybrid had a controlled test pass.
+## 5. Models
+Popularity, Item-CF (cosine), LightGCN (evaluated, rejected), validation-tuned hybrid 0.9 Item-CF + 0.1 popularity + 0 LightGCN.
 
-| Selected hybrid controlled-test metric | Value |
-|---|---:|
-| Recall@10 | 0.012742 |
-| NDCG@10 | 0.015098 |
-| Hit Rate@10 | 0.109033 |
-| Precision@10 | 0.012902 |
-| Catalog coverage | 0.638513 |
+## 6. Results (validation, model selection)
 
-The metric-eligible population was 6,255 of 7,176 users. See the parent project report for protocol details and limitations.
+| Model | Recall@10 | NDCG@10 | Hit@10 | Coverage@20 |
+|---|---:|---:|---:|---:|
+| Popularity | 0.0157 | 0.0168 | 0.0992 | 2.6% |
+| Item-CF | 0.0122 | 0.0154 | 0.1089 | 66.2% |
+| LightGCN (rejected) | 0.0086 | 0.0093 | 0.0658 | 57.1% |
+| Hybrid (selected) | 0.0141 | 0.0164 | 0.1139 | 62.3% |
 
-## 4. API and explainability
+Honest result: the hybrid matches popularity on NDCG@10 while covering ~24× more of the catalogue and achieving the highest Hit@10.
 
-- Recommendation, model, comparison, catalog, similar-item, feedback, liveness/readiness, and metrics endpoints.
-- Manifest model IDs and saved reason codes are visible to the UI.
-- The video detail page uses frozen Item-CF cosine neighbors.
-- Feedback is persisted for analysis; it is not online learning.
+## 7. Controlled test (selected hybrid, single pass)
+Recall@10 0.0127 · NDCG@10 0.0151 · Hit@10 0.1090 · Precision@10 0.0129 · Recall@20 0.0255 · coverage 63.9%; 6,255 of 7,176 users metric-eligible.
 
-## 5. User experience
+## 8. Explainability
+Each result shows machine-readable evidence: source video, similarity, preference strength, contribution, weights; popularity counts; cold-start reason. Evidence validated at API start-up. Screenshot: `desktop-uat01-known-user.png`.
 
-- Recommendation feed with real API-backed user list, Top-K controls, model selection, loading and error states.
-- Cold-start fallback control, model comparison, offline metrics, video details, similar items, and feedback controls.
-- Demonstrate keyboard and narrow viewport behavior only after the pending UAT rows have been tested.
+## 9. Demo states
+Known user, unknown user, no positive history, requested cold start, timeout, backend unavailable. Screenshots: `desktop-uat02…`, `uat03…`, `uat04…`, `uat09…`.
 
-## 6. Deployment and evidence
+## 10. Engineering quality
+Go: 27 tests + 11 subtests, PostgreSQL integration test. Frontend: 20 component tests, 21 Playwright scenarios on desktop and mobile. Docker clean-clone deploy; feedback survives restarts; rate limiting, CORS, request-ID logs.
 
-- Docker Compose runs PostgreSQL, Go API, and Next.js.
-- `/healthz`, `/readyz`, `/metrics`, request IDs, structured logs, and response-time header.
-- `docs/ABDUL_WORK_AUDIT.md` and `docs/user_acceptance_tests.md` distinguish code review/build evidence from runtime checks still pending.
+## 11. Limitations and future work
+Proxy relevance label; popularity dominance in accuracy metrics; comparison lists for 100 demo users; no online learning; social links not used as taste evidence; future: sequential model, online feedback loop.
