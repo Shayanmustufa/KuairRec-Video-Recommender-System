@@ -1,6 +1,6 @@
 {
   "manifest_version": "2.0",
-  "generated_at": "2026-11-25T07:17:07+00:00",
+  "generated_at": "2026-11-25T07:25:41+00:00",
   "source_model_manifest_generated_at": "2026-11-24T09:42:18.341613+00:00",
   "dataset_release": {
     "name": "KuaiRec 2.0",
@@ -190,10 +190,10 @@
   },
   "bundle_sha256": {
     "catalog.json": "3383530caf13ee95a09b5ddf313142abfdecd320418bb0728bc367cce4632cf1",
-    "recommendations.json.gz": "cc73a7825d28743a0154c699ecced71cf9dd8fbbb55f511ea4b591cba97d2834",
+    "recommendations.json.gz": "a77ea87a8630b7f957b19154e0bc83fc9e455c3a8cf8bae87549a4ba83082af5",
     "comparisons.json": "570d2089e0839ff5f19ccd179d525b4cdad0133ae3fad9ccc728bdf306a68d3a",
     "popularity.json": "f5ce9d0dcb559a5c7c17d7c9fd622782b92c1203ad5507c45eb1bf20eb44cd12",
     "user_profiles.json": "0358d40f7290d3b7bc31d6a8c055980cbbbbbdd12f7dbfda8fc9cc47632d4cdc",
-    "item_similarity.json": "c43e0a8abd03b8622ae5e8b79d5cd95995161afbbc06a2c28fdf0bd294d0b299"
+    "item_similarity.json": "423ccf242837f8ca07e5210e1ecbca0061a887150e63bbbb0471f7539a57752e"
   }
 }

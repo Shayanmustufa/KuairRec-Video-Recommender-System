@@ -368,7 +368,7 @@ def main() -> int:
         },
         "bundle_sha256": {name: sha256(out / name) for name in serving_files if (out / name).exists()},
     }
-    (out / "model_manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    (out / "model_manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
 
     evaluation = test_metrics["evaluation"]
     summary = {
@@ -393,7 +393,7 @@ def main() -> int:
             "runtime_environment": test_metrics["runtime_environment"],
         },
     }
-    (out / "metrics_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    (out / "metrics_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps({"catalog": len(catalog), "users": len(recommendations), "demo_users": len(demo_users),
                       "no_history_users": len(no_history), "recommendation_rows": int(len(predictions))}, indent=2))
     return 0

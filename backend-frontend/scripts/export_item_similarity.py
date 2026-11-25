@@ -46,7 +46,7 @@ def export(repo_root: Path, output_dir: Path, top_neighbors: int = 50) -> dict[s
 
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "item_similarity.json"
-    output_path.write_text(json.dumps(neighbors, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8")
+    output_path.write_text(json.dumps(neighbors, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     export_manifest = {
         "schema_version": "1.0",
         "model_id": manifest["model_id"],
@@ -59,7 +59,7 @@ def export(repo_root: Path, output_dir: Path, top_neighbors: int = 50) -> dict[s
         "items_with_neighbors": len(neighbors),
         "maximum_neighbors_per_item": top_neighbors,
     }
-    (output_dir / "item_similarity_manifest.json").write_text(json.dumps(export_manifest, indent=2) + "\n", encoding="utf-8")
+    (output_dir / "item_similarity_manifest.json").write_text(json.dumps(export_manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     return export_manifest
 
 
