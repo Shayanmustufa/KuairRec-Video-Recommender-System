@@ -1,98 +1,156 @@
 {
-  "manifest_version": "1.0.0",
-  "generated_at": "2026-02-15T00:00:00Z",
-  "dataset_release": {
-    "name": "KuaiRec-Official-v2.0",
-    "paper": "KuaiRec: A Fully-Observed Dataset for Recommender Systems (Gao et al., 2022)",
-    "official_url": "https://kuairec.com/",
-    "source_repo": "https://github.com/chongminggao/KuaiRec",
-    "protocol": "Train on Big Matrix (70% temporal split), Validation (15%), Test on Small Matrix (15%)",
-    "target_definition": "watch_ratio >= 1.0 (completed video watch)"
+ "manifest_version": "2.0",
+ "generated_at": "2026-01-01T00:00:00+00:00",
+ "dataset_release": {
+  "name": "synthetic test fixture"
+ },
+ "current_model": "hybrid-validation-selected-v1",
+ "fallback_model": "popularity-positive-event-count-v1",
+ "selected_weights": {
+  "popularity": 0.1,
+  "item_cf": 0.9,
+  "lightgcn": 0.0
+ },
+ "models": [
+  {
+   "id": "popularity-positive-event-count-v1",
+   "name": "Popularity baseline",
+   "type": "baseline",
+   "description": "test",
+   "is_fallback": true,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
   },
-  "current_model": "hybrid-v1",
-  "models": [
-    {
-      "id": "popularity-v1",
-      "name": "Exposure-Aware Popularity Baseline",
-      "type": "baseline",
-      "description": "Ranks items by training interaction volume and mean completion watch-ratio.",
-      "is_fallback": true,
-      "metrics": {
-        "recall_at_10": 0.0820,
-        "ndcg_at_10": 0.0610,
-        "hit_rate_at_10": 0.1450,
-        "precision_at_10": 0.0380,
-        "coverage": 0.4200
-      }
-    },
-    {
-      "id": "itemcf-v1",
-      "name": "Item-Based Collaborative Filtering (Shrunk Cosine)",
-      "type": "collaborative",
-      "description": "Item-item cosine similarity on positive watch-ratio vectors with neighbor shrinkage.",
-      "is_fallback": false,
-      "metrics": {
-        "recall_at_10": 0.1740,
-        "ndcg_at_10": 0.1420,
-        "hit_rate_at_10": 0.2980,
-        "precision_at_10": 0.0890,
-        "coverage": 0.6850
-      }
-    },
-    {
-      "id": "lightgcn-v1",
-      "name": "LightGCN Graph Collaborative Filtering",
-      "type": "graph",
-      "description": "3-layer LightGCN user-item bipartite embedding propagation with dot-product scoring.",
-      "is_fallback": false,
-      "metrics": {
-        "recall_at_10": 0.2180,
-        "ndcg_at_10": 0.1830,
-        "hit_rate_at_10": 0.3640,
-        "precision_at_10": 0.1120,
-        "coverage": 0.7920
-      }
-    },
-    {
-      "id": "hybrid-v1",
-      "name": "Validation-Tuned Weighted Hybrid Ranker",
-      "type": "hybrid",
-      "description": "Fused percentile ranks: alpha * CF + beta * LightGCN + gamma * Popularity.",
-      "is_fallback": false,
-      "weights": {
-        "alpha_cf": 0.45,
-        "beta_extension": 0.35,
-        "gamma_popularity": 0.20
-      },
-      "metrics": {
-        "recall_at_10": 0.2540,
-        "ndcg_at_10": 0.2150,
-        "hit_rate_at_10": 0.4120,
-        "precision_at_10": 0.1340,
-        "coverage": 0.8460
-      }
-    }
-  ],
-  "reason_code_rules": [
-    {
-      "code": "similar_to_recent",
-      "description": "Item cosine similarity >= 0.70 with an item in user's recent high-watch history."
-    },
-    {
-      "code": "popular_in_training",
-      "description": "Item ranks in top 15% of overall training completion volume."
-    },
-    {
-      "code": "liked_by_similar_users",
-      "description": "Item has high collaborative neighborhood co-engagement from overlapping users."
-    },
-    {
-      "code": "extension_model_match",
-      "description": "Graph bipartite embedding dot product indicates high representation alignment."
-    },
-    {
-      "code": "cold_start",
-      "description": "User has < 2 recorded interactions in training; served via popularity fallback."
-    }
-  ]
+  {
+   "id": "item-cf-cosine-v1",
+   "name": "Item-CF",
+   "type": "collaborative",
+   "description": "test",
+   "is_fallback": false,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "lightgcn-validation-selected-v1",
+   "name": "LightGCN (rejected experiment)",
+   "type": "experimental",
+   "description": "test",
+   "is_fallback": false,
+   "status": "rejected",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "hybrid-validation-selected-v1",
+   "name": "Selected hybrid",
+   "type": "hybrid",
+   "description": "test",
+   "is_fallback": false,
+   "status": "selected",
+   "weights": {
+    "alpha_cf": 0.9,
+    "beta_extension": 0.0,
+    "gamma_popularity": 0.1
+   },
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  }
+ ],
+ "serving": {
+  "recommendations": {
+   "split": "test"
+  },
+  "comparisons": {
+   "split": "validation"
+  }
+ },
+ "reason_code_rules": [
+  {
+   "code": "liked_by_similar_users",
+   "enabled": true,
+   "description": "CF",
+   "required_evidence": [
+    "source_video_id",
+    "similarity",
+    "preference_strength",
+    "contribution",
+    "item_cf_weight"
+   ]
+  },
+  {
+   "code": "popular_in_training",
+   "enabled": true,
+   "description": "pop",
+   "required_evidence": [
+    "positive_training_event_count",
+    "popularity_weight"
+   ]
+  },
+  {
+   "code": "extension_model_match",
+   "enabled": false,
+   "description": "lgcn",
+   "required_evidence": [
+    "lightgcn_score",
+    "lightgcn_weight"
+   ]
+  },
+  {
+   "code": "similar_to_recent",
+   "enabled": false,
+   "description": "recent",
+   "required_evidence": [
+    "source_video_id",
+    "source_timestamp",
+    "similarity"
+   ]
+  },
+  {
+   "code": "cold_start",
+   "enabled": true,
+   "description": "fallback",
+   "required_evidence": [
+    "fallback_model_id",
+    "positive_training_event_count"
+   ]
+  }
+ ]
 }

@@ -1,0 +1,166 @@
+{
+ "popularity-positive-event-count-v1": {
+  "1": [
+   {
+    "item_id": "1",
+    "rank": 1,
+    "score": 50,
+    "source": "popularity-positive-event-count-v1",
+    "reasons": [
+     {
+      "code": "popular_in_training",
+      "text": "Popular in positive training interactions.",
+      "evidence": {
+       "positive_training_event_count": 50,
+       "popularity_weight": 1.0
+      }
+     }
+    ]
+   },
+   {
+    "item_id": "2",
+    "rank": 2,
+    "score": 40,
+    "source": "popularity-positive-event-count-v1",
+    "reasons": [
+     {
+      "code": "popular_in_training",
+      "text": "Popular in positive training interactions.",
+      "evidence": {
+       "positive_training_event_count": 40,
+       "popularity_weight": 1.0
+      }
+     }
+    ]
+   },
+   {
+    "item_id": "3",
+    "rank": 3,
+    "score": 30,
+    "source": "popularity-positive-event-count-v1",
+    "reasons": [
+     {
+      "code": "popular_in_training",
+      "text": "Popular in positive training interactions.",
+      "evidence": {
+       "positive_training_event_count": 30,
+       "popularity_weight": 1.0
+      }
+     }
+    ]
+   }
+  ],
+  "2": []
+ },
+ "item-cf-cosine-v1": {
+  "1": [
+   {
+    "item_id": "4",
+    "rank": 1,
+    "score": 1.4,
+    "source": "item-cf-cosine-v1",
+    "reasons": [
+     {
+      "code": "liked_by_similar_users",
+      "text": "Recommended from collaborative patterns linked to your positive history.",
+      "evidence": {
+       "source_video_id": "5",
+       "similarity": 0.5,
+       "preference_strength": 1.5,
+       "contribution": 0.75,
+       "item_cf_weight": 1.0
+      }
+     }
+    ]
+   }
+  ],
+  "2": []
+ },
+ "lightgcn-validation-selected-v1": {
+  "1": [
+   {
+    "item_id": "6",
+    "rank": 1,
+    "score": 0.03,
+    "source": "lightgcn-validation-selected-v1",
+    "reasons": [
+     {
+      "code": "extension_model_match",
+      "text": "Ranked by the LightGCN embedding dot-product score.",
+      "evidence": {
+       "lightgcn_score": 0.03,
+       "lightgcn_weight": 0.0
+      }
+     }
+    ]
+   }
+  ],
+  "2": []
+ },
+ "hybrid-validation-selected-v1": {
+  "1": [
+   {
+    "item_id": "3",
+    "rank": 1,
+    "score": 0.9,
+    "source": "hybrid-validation-selected-v1",
+    "components": {
+     "item_cf": {
+      "normalized_score": 1.0,
+      "weight": 0.9,
+      "contribution": 0.9
+     },
+     "lightgcn": {
+      "normalized_score": 0.5,
+      "weight": 0.0,
+      "contribution": 0.0
+     },
+     "popularity": {
+      "normalized_score": 0.2,
+      "weight": 0.1,
+      "contribution": 0.02
+     }
+    },
+    "reasons": [
+     {
+      "code": "liked_by_similar_users",
+      "text": "Recommended from collaborative patterns linked to your positive history.",
+      "evidence": {
+       "source_video_id": "5",
+       "similarity": 0.4,
+       "preference_strength": 1.5,
+       "contribution": 0.6,
+       "item_cf_weight": 0.9
+      }
+     },
+     {
+      "code": "popular_in_training",
+      "text": "Popular in positive training interactions.",
+      "evidence": {
+       "positive_training_event_count": 30,
+       "popularity_weight": 0.1
+      }
+     }
+    ]
+   }
+  ],
+  "2": [
+   {
+    "item_id": "1",
+    "rank": 1,
+    "score": 0.1,
+    "source": "hybrid-validation-selected-v1",
+    "reasons": [
+     {
+      "code": "popular_in_training",
+      "text": "Popular in positive training interactions.",
+      "evidence": {
+       "positive_training_event_count": 50,
+       "popularity_weight": 0.1
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

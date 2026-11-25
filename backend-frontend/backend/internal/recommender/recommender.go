@@ -1,9 +1,19 @@
+// Package recommender serves frozen, offline-computed recommendation artifacts.
+//
+// The Go service never trains or re-scores models (WBS §2.3). It loads the
+// serving bundle written by scripts/generate_serving_bundle.py, verifies its
+// checksums and explanation evidence at startup, and then answers requests by
+// filtering and truncating the saved ranked lists.
 package recommender
 
 import (
+	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -15,577 +25,626 @@ import (
 	"github.com/Shayanmustufa/KuaiRec-Video-Recommender-System/backend/internal/explanation"
 )
 
-// RecommendationRequest is the input payload specified in Section 7
+// MaxTopK is the length of every frozen ranked list in the bundle.
+const MaxTopK = 20
+
+// Errors returned for invalid requests. Handlers map them to 4xx responses.
+var (
+	ErrUnknownModel        = errors.New("unknown model id")
+	ErrUnknownItems        = errors.New("candidate_ids contains items outside the eligible catalog")
+	ErrNoComparisonExport  = errors.New("no exported comparison lists for this user")
+	ErrInvalidTopK         = fmt.Errorf("top_k must be between 1 and %d", MaxTopK)
+	ErrEmptyUserID         = errors.New("user_id is required")
+	ErrModelNotServable    = errors.New("model has no serving lists for this user")
+	errBundleChecksumFails = errors.New("serving bundle checksum mismatch")
+)
+
+// UnknownItemsError lists rejected candidate IDs.
+type UnknownItemsError struct{ IDs []string }
+
+func (e *UnknownItemsError) Error() string { return fmt.Sprintf("%s: %v", ErrUnknownItems, e.IDs) }
+func (e *UnknownItemsError) Unwrap() error { return ErrUnknownItems }
+
+// RecommendationRequest is the WBS §7 request body plus two demo controls.
 type RecommendationRequest struct {
 	UserID       string   `json:"user_id"`
 	TopK         int      `json:"top_k"`
-	ExcludeSeen  bool     `json:"exclude_seen"`
-	CandidateIDs []string `json:"candidate_ids,omitempty"`
+	ExcludeSeen  *bool    `json:"exclude_seen"`
+	CandidateIDs []string `json:"candidate_ids"`
+	// Model selects a manifest model for this request only; empty means the
+	// server default. It never changes state shared with other clients.
+	Model string `json:"model,omitempty"`
+	// ForceColdStart demonstrates the cold-start path for a known user.
+	ForceColdStart bool `json:"force_cold_start,omitempty"`
 }
 
-// RecommendedItem represents a single ranked item with explainability
+// Component is one term of the hybrid score: weight × normalized score.
+type Component struct {
+	NormalizedScore float64 `json:"normalized_score"`
+	Weight          float64 `json:"weight"`
+	Contribution    float64 `json:"contribution"`
+}
+
+// RecommendedItem is one ranked result (WBS §6).
 type RecommendedItem struct {
-	ItemID   string               `json:"item_id"`
-	Rank     int                  `json:"rank"`
-	Score    float64              `json:"score"`
-	Source   string               `json:"source"`
-	Video    *catalog.VideoItem   `json:"video,omitempty"`
-	Reasons  []explanation.Reason `json:"reasons"`
+	ItemID     string               `json:"item_id"`
+	Rank       int                  `json:"rank"`
+	Score      float64              `json:"score"`
+	Source     string               `json:"source"`
+	Video      *catalog.VideoItem   `json:"video,omitempty"`
+	Components map[string]Component `json:"components,omitempty"`
+	Reasons    []explanation.Reason `json:"reasons"`
 }
 
+// RecommendationResponse is the WBS §7 response plus provenance fields.
+type RecommendationResponse struct {
+	UserID          string                 `json:"user_id"`
+	Model           string                 `json:"model"`
+	TopK            int                    `json:"top_k"`
+	Recommendations []RecommendedItem      `json:"recommendations"`
+	Fallback        bool                   `json:"fallback"`
+	FallbackReason  string                 `json:"fallback_reason,omitempty"`
+	UserStatus      explanation.UserStatus `json:"user_status"`
+	ArtifactSplit   string                 `json:"artifact_split"`
+	ExcludeSeen     bool                   `json:"exclude_seen"`
+	GeneratedAt     string                 `json:"generated_at"`
+	LatencyMs       float64                `json:"latency_ms"`
+}
+
+// ModelMeta describes one registered model.
+type ModelMeta struct {
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Type        string             `json:"type"`
+	Description string             `json:"description"`
+	IsFallback  bool               `json:"is_fallback"`
+	Status      string             `json:"status"`
+	Weights     map[string]float64 `json:"weights,omitempty"`
+	Metrics     map[string]float64 `json:"metrics"`
+}
+
+// ModelManifest is the auditable serving manifest (WBS §2.2, §12).
+type ModelManifest struct {
+	ManifestVersion      string                    `json:"manifest_version"`
+	GeneratedAt          string                    `json:"generated_at"`
+	SourceGeneratedAt    string                    `json:"source_model_manifest_generated_at,omitempty"`
+	DatasetRelease       map[string]any            `json:"dataset_release"`
+	CurrentModel         string                    `json:"current_model"`
+	FallbackModel        string                    `json:"fallback_model"`
+	SelectedWeights      map[string]float64        `json:"selected_weights"`
+	Models               []ModelMeta               `json:"models"`
+	Serving              map[string]map[string]any `json:"serving"`
+	ReasonCodeRules      []explanation.Rule        `json:"reason_code_rules"`
+	SourceArtifactsSHA   map[string]string         `json:"source_artifacts_sha256,omitempty"`
+	BundleSHA            map[string]string         `json:"bundle_sha256,omitempty"`
+	ActiveDefaultModel   string                    `json:"active_default_model,omitempty"`
+	BundleVerifiedAtLoad bool                      `json:"bundle_verified_at_load"`
+}
+
+// HistoryEvent is a recent positive interaction kept for demo users.
+type HistoryEvent struct {
+	ItemID     string  `json:"item_id"`
+	Timestamp  float64 `json:"timestamp"`
+	WatchRatio float64 `json:"watch_ratio"`
+}
+
+// UserProfile summarizes a user's pre-test history.
+type UserProfile struct {
+	SeenItems            int            `json:"seen_items"`
+	PositiveHistoryItems int            `json:"positive_history_items"`
+	RecentPositive       []HistoryEvent `json:"recent_positive,omitempty"`
+	SeenItemIDs          []string       `json:"seen_item_ids,omitempty"`
+	Demo                 bool           `json:"demo,omitempty"`
+}
+
+// PopularItem is one entry of the frozen fallback order.
+type PopularItem struct {
+	ItemID                     string `json:"item_id"`
+	PositiveTrainingEventCount int    `json:"positive_training_event_count"`
+}
+
+// SimilarItem is an Item-CF neighbor.
 type SimilarItem struct {
 	ItemID string             `json:"item_id"`
 	Score  float64            `json:"score"`
 	Video  *catalog.VideoItem `json:"video,omitempty"`
 }
 
-// RecommendationResponse is the output payload specified in Section 7
-type RecommendationResponse struct {
-	UserID          string            `json:"user_id"`
-	Model           string            `json:"model"`
-	TopK            int               `json:"top_k"`
-	Recommendations []RecommendedItem `json:"recommendations"`
-	Fallback        bool              `json:"fallback"`
-	GeneratedAt     string            `json:"generated_at"`
-	LatencyMs       float64           `json:"latency_ms,omitempty"`
-}
-
-// ModelManifest structures
-type ModelManifest struct {
-	ManifestVersion string         `json:"manifest_version"`
-	GeneratedAt     string         `json:"generated_at"`
-	DatasetRelease  map[string]any `json:"dataset_release"`
-	CurrentModel    string         `json:"current_model"`
-	Models          []ModelMeta    `json:"models"`
-	ReasonCodeRules []any          `json:"reason_code_rules"`
-}
-
-type ModelMeta struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Type        string         `json:"type"`
-	Description string         `json:"description"`
-	IsFallback  bool           `json:"is_fallback"`
-	Weights     map[string]any `json:"weights,omitempty"`
-	Metrics     map[string]any `json:"metrics"`
-}
-
-// InteractionRecord represents user history in KuaiRec
-type InteractionRecord struct {
-	ItemID     string  `json:"item_id"`
-	Timestamp  string  `json:"timestamp"`
-	WatchRatio float64 `json:"watch_ratio"`
-	Liked      bool    `json:"liked"`
-}
-
+// Engine serves the frozen bundle. All loaded data is read-only; only the
+// default model ID is mutable and it is guarded by mu.
 type Engine struct {
+	catalog     *catalog.Repository
+	manifest    ModelManifest
+	rules       explanation.Rules
+	models      map[string]ModelMeta
+	selected    map[string][]RecommendedItem
+	comparisons map[string]map[string][]RecommendedItem
+	popularity  []PopularItem
+	profiles    map[string]UserProfile
+	seen        map[string]map[string]struct{}
+	itemSims    map[string]map[string]float64
+
 	mu           sync.RWMutex
-	catRepo      *catalog.Repository
-	explainer    *explanation.Generator
-	userHistory  map[string][]InteractionRecord
-	itemSims     map[string]map[string]float64
-	manifest     ModelManifest
-	activeModel  string
-	precomputed  map[string][]RecommendedItem
-	comparisons  map[string]map[string][]RecommendedItem
-	popularity   []string
-	hybridWeight struct {
-		Alpha float64 // CF weight
-		Beta  float64 // Graph weight
-		Gamma float64 // Popularity weight
-	}
+	defaultModel string
 }
 
-func NewEngine(dataDir string, catRepo *catalog.Repository) (*Engine, error) {
-	manifestPath := filepath.Join(dataDir, "model_manifest.json")
-	mBytes, err := os.ReadFile(manifestPath)
+// NewEngine loads and validates the serving bundle in dataDir.
+func NewEngine(dataDir string, repo *catalog.Repository) (*Engine, error) {
+	e := &Engine{catalog: repo}
+	if err := readJSON(filepath.Join(dataDir, "model_manifest.json"), &e.manifest); err != nil {
+		return nil, err
+	}
+	if err := verifyBundle(dataDir, e.manifest.BundleSHA); err != nil {
+		return nil, err
+	}
+	e.manifest.BundleVerifiedAtLoad = len(e.manifest.BundleSHA) > 0
+	rules, err := explanation.NewRules(e.manifest.ReasonCodeRules)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read model manifest %s: %w", manifestPath, err)
+		return nil, err
 	}
-
-	var manifest ModelManifest
-	if err := json.Unmarshal(mBytes, &manifest); err != nil {
-		return nil, fmt.Errorf("failed to parse model manifest: %w", err)
+	e.rules = rules
+	e.models = make(map[string]ModelMeta, len(e.manifest.Models))
+	for _, m := range e.manifest.Models {
+		e.models[m.ID] = m
 	}
-	precomputed := make(map[string][]RecommendedItem)
-	if bytes, err := os.ReadFile(filepath.Join(dataDir, "recommendations.json")); err != nil {
-		return nil, fmt.Errorf("failed to read audited recommendations: %w", err)
-	} else if err := json.Unmarshal(bytes, &precomputed); err != nil {
-		return nil, fmt.Errorf("failed to parse audited recommendations: %w", err)
+	if err := e.validateManifest(); err != nil {
+		return nil, err
 	}
-	comparisons := make(map[string]map[string][]RecommendedItem)
-	if bytes, err := os.ReadFile(filepath.Join(dataDir, "comparisons.json")); err == nil {
-		if err := json.Unmarshal(bytes, &comparisons); err != nil { return nil, fmt.Errorf("failed to parse comparisons: %w", err) }
+	if err := readMaybeGzip(dataDir, "recommendations.json", &e.selected); err != nil {
+		return nil, err
 	}
-	var popularity []string
-	if bytes, err := os.ReadFile(filepath.Join(dataDir, "popularity.json")); err != nil {
-		return nil, fmt.Errorf("failed to read popularity fallback: %w", err)
-	} else if err := json.Unmarshal(bytes, &popularity); err != nil { return nil, fmt.Errorf("failed to parse popularity fallback: %w", err) }
-
-	// Read user history
-	userHistory := make(map[string][]InteractionRecord)
-	histPath := filepath.Join(dataDir, "user_history.json")
-	if hBytes, err := os.ReadFile(histPath); err == nil {
-		_ = json.Unmarshal(hBytes, &userHistory)
+	if err := readJSON(filepath.Join(dataDir, "comparisons.json"), &e.comparisons); err != nil {
+		return nil, err
 	}
-
-	// Read item similarities
-	itemSims := make(map[string]map[string]float64)
-	simPath := filepath.Join(dataDir, "item_similarity.json")
-	if sBytes, err := os.ReadFile(simPath); err == nil {
-		_ = json.Unmarshal(sBytes, &itemSims)
+	if err := readJSON(filepath.Join(dataDir, "popularity.json"), &e.popularity); err != nil {
+		return nil, err
 	}
-
-	e := &Engine{
-		catRepo:     catRepo,
-		explainer:   explanation.NewGenerator(),
-		userHistory: userHistory,
-		itemSims:    itemSims,
-		manifest:    manifest,
-		activeModel: manifest.CurrentModel,
-		precomputed: precomputed,
-		comparisons: comparisons,
-		popularity: popularity,
+	if err := readJSON(filepath.Join(dataDir, "user_profiles.json"), &e.profiles); err != nil {
+		return nil, err
 	}
-
-	// Frozen validation-selected weights.
-	e.hybridWeight.Alpha = 0.90
-	e.hybridWeight.Beta = 0.0
-	e.hybridWeight.Gamma = 0.10
-
+	if err := readJSON(filepath.Join(dataDir, "item_similarity.json"), &e.itemSims); err != nil {
+		return nil, err
+	}
+	if err := e.validateLists(); err != nil {
+		return nil, err
+	}
+	e.seen = make(map[string]map[string]struct{})
+	for userID, profile := range e.profiles {
+		if len(profile.SeenItemIDs) == 0 {
+			continue
+		}
+		set := make(map[string]struct{}, len(profile.SeenItemIDs))
+		for _, id := range profile.SeenItemIDs {
+			set[id] = struct{}{}
+		}
+		e.seen[userID] = set
+	}
+	e.defaultModel = e.manifest.CurrentModel
 	return e, nil
 }
 
-func (e *Engine) GetManifest() ModelManifest {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+func (e *Engine) validateManifest() error {
 	m := e.manifest
-	m.CurrentModel = e.activeModel
-	return m
-}
-
-func (e *Engine) SetActiveModel(modelID string) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	valid := false
-	for _, m := range e.manifest.Models {
-		if m.ID == modelID {
-			valid = true
-			break
+	if _, ok := e.models[m.CurrentModel]; !ok {
+		return fmt.Errorf("manifest current_model %q is not registered", m.CurrentModel)
+	}
+	if _, ok := e.models[m.FallbackModel]; !ok {
+		return fmt.Errorf("manifest fallback_model %q is not registered", m.FallbackModel)
+	}
+	sum := 0.0
+	for name, w := range m.SelectedWeights {
+		if w < 0 || w > 1 {
+			return fmt.Errorf("selected weight %s=%v outside [0,1]", name, w)
 		}
+		sum += w
 	}
-	if !valid {
-		return fmt.Errorf("unknown model id: %s", modelID)
+	if math.Abs(sum-1) > 1e-9 {
+		return fmt.Errorf("selected weights sum to %v, want 1", sum)
 	}
-
-	e.activeModel = modelID
 	return nil
 }
 
-func (e *Engine) GetActiveModel() string {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.activeModel
-}
-
-func (e *Engine) GetUserHistory(userID string) []InteractionRecord {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.userHistory[userID]
-}
-
-func (e *Engine) SimilarItems(itemID string, limit int) []SimilarItem {
-	e.mu.RLock()
-	neighbors := e.itemSims[itemID]
-	e.mu.RUnlock()
-	items := make([]SimilarItem, 0, len(neighbors))
-	for neighborID, score := range neighbors {
-		if video, ok := e.catRepo.Get(neighborID); ok {
-			copy := video
-			items = append(items, SimilarItem{ItemID: neighborID, Score: score, Video: &copy})
+// validateLists enforces WBS §13 "every explanation has machine-readable
+// evidence" and checks every served item exists in the catalog.
+func (e *Engine) validateLists() error {
+	check := func(model, user string, items []RecommendedItem, requireEnabled bool) error {
+		for _, item := range items {
+			if !e.catalog.Has(item.ItemID) {
+				return fmt.Errorf("%s/%s: item %s is not in the catalog", model, user, item.ItemID)
+			}
+			if len(item.Reasons) == 0 {
+				return fmt.Errorf("%s/%s: item %s has no reason", model, user, item.ItemID)
+			}
+			for _, reason := range item.Reasons {
+				if err := e.rules.Validate(reason, requireEnabled); err != nil {
+					return fmt.Errorf("%s/%s/%s: %w", model, user, item.ItemID, err)
+				}
+			}
+		}
+		return nil
+	}
+	for user, items := range e.selected {
+		if err := check(e.manifest.CurrentModel, user, items, true); err != nil {
+			return err
 		}
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Score == items[j].Score { return items[i].ItemID < items[j].ItemID }
-		return items[i].Score > items[j].Score
-	})
-	if limit <= 0 { limit = 5 }
-	if limit > 20 { limit = 20 }
-	if len(items) > limit { items = items[:limit] }
-	return items
-}
-
-func (e *Engine) ListDemoUsers() []map[string]any {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	var users []map[string]any
-	// The model comparison export covers a curated subset. Offer those users
-	// in the UI so every switch has predictions from the selected model.
-	usersWithComparisons := e.comparisons["hybrid-validation-selected-v1"]
-	if len(usersWithComparisons) == 0 {
-		usersWithComparisons = make(map[string][]RecommendedItem, len(e.precomputed))
-		for uID := range e.precomputed {
-			usersWithComparisons[uID] = nil
+	for model, byUser := range e.comparisons {
+		if _, ok := e.models[model]; !ok {
+			return fmt.Errorf("comparison export for unregistered model %q", model)
+		}
+		for user, items := range byUser {
+			if err := check(model, user, items, e.models[model].Status != "rejected"); err != nil {
+				return err
+			}
 		}
 	}
-	for uID := range usersWithComparisons {
-		history := e.userHistory[uID]
-		users = append(users, map[string]any{
-			"user_id":          uID,
-			"interaction_count": len(history),
-			"is_cold_start":    false,
-			"history_available": len(history) > 0,
+	for _, p := range e.popularity {
+		if !e.catalog.Has(p.ItemID) {
+			return fmt.Errorf("popularity item %s is not in the catalog", p.ItemID)
+		}
+	}
+	return nil
+}
+
+// Manifest returns the manifest with the current default model.
+func (e *Engine) Manifest() ModelManifest {
+	m := e.manifest
+	m.ActiveDefaultModel = e.DefaultModel()
+	return m
+}
+
+// DefaultModel returns the model used when a request names none.
+func (e *Engine) DefaultModel() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.defaultModel
+}
+
+// SetDefaultModel changes the server-wide default (admin operation).
+func (e *Engine) SetDefaultModel(modelID string) error {
+	if _, ok := e.models[modelID]; !ok {
+		return fmt.Errorf("%w: %s", ErrUnknownModel, modelID)
+	}
+	e.mu.Lock()
+	e.defaultModel = modelID
+	e.mu.Unlock()
+	return nil
+}
+
+// HasModel reports whether modelID is registered in the manifest.
+func (e *Engine) HasModel(modelID string) bool { _, ok := e.models[modelID]; return ok }
+
+// UserCount returns the number of known users.
+func (e *Engine) UserCount() int { return len(e.profiles) }
+
+// Status classifies a user ID.
+func (e *Engine) Status(userID string) (explanation.UserStatus, UserProfile) {
+	profile, ok := e.profiles[userID]
+	switch {
+	case !ok:
+		return explanation.UserUnknown, UserProfile{}
+	case profile.PositiveHistoryItems == 0:
+		return explanation.UserNoHistory, profile
+	default:
+		return explanation.UserKnown, profile
+	}
+}
+
+// Recommend answers one request without mutating shared state.
+func (e *Engine) Recommend(req RecommendationRequest) (*RecommendationResponse, error) {
+	start := time.Now()
+	if req.UserID == "" {
+		return nil, ErrEmptyUserID
+	}
+	if req.TopK == 0 {
+		req.TopK = 10
+	}
+	if req.TopK < 1 || req.TopK > MaxTopK {
+		return nil, ErrInvalidTopK
+	}
+	model := req.Model
+	if model == "" {
+		model = e.DefaultModel()
+	}
+	if !e.HasModel(model) {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownModel, model)
+	}
+	candidates, err := e.candidateFilter(req.CandidateIDs)
+	if err != nil {
+		return nil, err
+	}
+	excludeSeen := req.ExcludeSeen == nil || *req.ExcludeSeen
+	status, _ := e.Status(req.UserID)
+
+	resp := &RecommendationResponse{UserID: req.UserID, UserStatus: status, ExcludeSeen: excludeSeen}
+	switch {
+	case req.ForceColdStart || status != explanation.UserKnown:
+		resp.Fallback = true
+		resp.Model = e.manifest.FallbackModel
+		resp.ArtifactSplit = "train"
+		switch {
+		case req.ForceColdStart:
+			resp.FallbackReason = "cold_start_requested"
+		case status == explanation.UserUnknown:
+			resp.FallbackReason = "unknown_user"
+		default:
+			resp.FallbackReason = "no_positive_history"
+		}
+		resp.Recommendations = e.fallback(req.UserID, status, req.ForceColdStart, excludeSeen, candidates, req.TopK)
+	default:
+		var stored []RecommendedItem
+		if model == e.manifest.CurrentModel {
+			stored, resp.ArtifactSplit = e.selected[req.UserID], "test"
+		} else {
+			stored, resp.ArtifactSplit = e.comparisons[model][req.UserID], "validation"
+			if _, exported := e.comparisons[model][req.UserID]; !exported {
+				return nil, fmt.Errorf("%w: model %s, user %s (comparison lists are exported for demo users)", ErrModelNotServable, model, req.UserID)
+			}
+		}
+		resp.Model = model
+		resp.Recommendations = e.filterStored(req.UserID, stored, excludeSeen, candidates, req.TopK)
+	}
+	resp.TopK = len(resp.Recommendations)
+	resp.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
+	resp.LatencyMs = float64(time.Since(start).Microseconds()) / 1000
+	return resp, nil
+}
+
+func (e *Engine) candidateFilter(ids []string) (map[string]struct{}, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	filter := make(map[string]struct{}, len(ids))
+	var unknown []string
+	for _, id := range ids {
+		if !e.catalog.Has(id) {
+			unknown = append(unknown, id)
+			continue
+		}
+		filter[id] = struct{}{}
+	}
+	if len(unknown) > 0 {
+		if len(unknown) > 10 {
+			unknown = unknown[:10]
+		}
+		return nil, &UnknownItemsError{IDs: unknown}
+	}
+	return filter, nil
+}
+
+func (e *Engine) keep(userID, itemID string, excludeSeen bool, candidates map[string]struct{}) bool {
+	if candidates != nil {
+		if _, ok := candidates[itemID]; !ok {
+			return false
+		}
+	}
+	if excludeSeen {
+		if _, seen := e.seen[userID][itemID]; seen {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Engine) withVideo(item RecommendedItem) RecommendedItem {
+	if video, ok := e.catalog.Get(item.ItemID); ok {
+		item.Video = &video
+	}
+	return item
+}
+
+func (e *Engine) filterStored(userID string, stored []RecommendedItem, excludeSeen bool, candidates map[string]struct{}, topK int) []RecommendedItem {
+	out := make([]RecommendedItem, 0, topK)
+	for _, item := range stored {
+		if !e.keep(userID, item.ItemID, excludeSeen, candidates) {
+			continue
+		}
+		item = e.withVideo(item)
+		item.Rank = len(out) + 1
+		out = append(out, item)
+		if len(out) == topK {
+			break
+		}
+	}
+	return out
+}
+
+func (e *Engine) fallback(userID string, status explanation.UserStatus, forced, excludeSeen bool, candidates map[string]struct{}, topK int) []RecommendedItem {
+	out := make([]RecommendedItem, 0, topK)
+	for _, p := range e.popularity {
+		if !e.keep(userID, p.ItemID, excludeSeen, candidates) {
+			continue
+		}
+		item := e.withVideo(RecommendedItem{
+			ItemID: p.ItemID,
+			Rank:   len(out) + 1,
+			Score:  float64(p.PositiveTrainingEventCount),
+			Source: e.manifest.FallbackModel,
+			Reasons: []explanation.Reason{
+				explanation.ColdStart(e.manifest.FallbackModel, p.PositiveTrainingEventCount, status, forced),
+			},
 		})
+		out = append(out, item)
+		if len(out) == topK {
+			break
+		}
 	}
-	sort.Slice(users, func(i, j int) bool {
-		return users[i]["user_id"].(string) < users[j]["user_id"].(string)
-	})
-	if len(users) > 100 { users = users[:100] }
+	return out
+}
+
+// CompareModel is one column of a comparison.
+type CompareModel struct {
+	Model           string            `json:"model"`
+	Recommendations []RecommendedItem `json:"recommendations"`
+	EmptyReason     string            `json:"empty_reason,omitempty"`
+}
+
+// CompareResult holds all manifest models for the same user and split.
+type CompareResult struct {
+	UserID        string                  `json:"user_id"`
+	UserStatus    explanation.UserStatus  `json:"user_status"`
+	TopK          int                     `json:"top_k"`
+	ArtifactSplit string                  `json:"artifact_split"`
+	Candidates    string                  `json:"candidates"`
+	Models        map[string]CompareModel `json:"models"`
+}
+
+// Compare returns validation-time lists for every registered model for the
+// same user and candidate protocol. It does not touch the default model.
+func (e *Engine) Compare(userID string, topK int) (*CompareResult, error) {
+	if topK < 1 || topK > MaxTopK {
+		return nil, ErrInvalidTopK
+	}
+	if _, ok := e.comparisons[e.manifest.CurrentModel][userID]; !ok {
+		return nil, fmt.Errorf("%w: %s", ErrNoComparisonExport, userID)
+	}
+	status, _ := e.Status(userID)
+	result := &CompareResult{UserID: userID, UserStatus: status, TopK: topK, ArtifactSplit: "validation",
+		Candidates: "full eligible catalog minus training-seen items", Models: map[string]CompareModel{}}
+	for _, meta := range e.manifest.Models {
+		items := e.filterStored(userID, e.comparisons[meta.ID][userID], false, nil, topK)
+		column := CompareModel{Model: meta.ID, Recommendations: items}
+		if len(items) == 0 {
+			column.EmptyReason = "No supported ranking signal for this user (no positive training history)."
+		}
+		result.Models[meta.ID] = column
+	}
+	return result, nil
+}
+
+// DemoUser is an entry of the user selector.
+type DemoUser struct {
+	UserID               string                 `json:"user_id"`
+	Status               explanation.UserStatus `json:"status"`
+	PositiveHistoryItems int                    `json:"positive_history_items"`
+	SeenItems            int                    `json:"seen_items"`
+}
+
+// DemoUsers returns the users with exported comparison lists, sorted by ID.
+func (e *Engine) DemoUsers() []DemoUser {
+	users := make([]DemoUser, 0, 100)
+	for id, p := range e.profiles {
+		if !p.Demo {
+			continue
+		}
+		status, _ := e.Status(id)
+		users = append(users, DemoUser{UserID: id, Status: status, PositiveHistoryItems: p.PositiveHistoryItems, SeenItems: p.SeenItems})
+	}
+	sort.Slice(users, func(i, j int) bool { return lessNumeric(users[i].UserID, users[j].UserID) })
 	return users
 }
 
-// Recommend computes top-K recommendations adhering to Section 5, 6, and 7
-func (e *Engine) Recommend(req RecommendationRequest) (*RecommendationResponse, error) {
-	e.mu.RLock()
-	modelID := e.activeModel
-	e.mu.RUnlock()
-	return e.recommendForModel(req, modelID)
+// UserDetail describes a user for the UI history/evidence panel.
+type UserDetail struct {
+	UserID               string                 `json:"user_id"`
+	Status               explanation.UserStatus `json:"status"`
+	SeenItems            int                    `json:"seen_items"`
+	PositiveHistoryItems int                    `json:"positive_history_items"`
+	RecentPositive       []HistoryItem          `json:"recent_positive"`
+	HasComparisonExport  bool                   `json:"has_comparison_export"`
 }
 
-func (e *Engine) recommendForModel(req RecommendationRequest, activeModel string) (*RecommendationResponse, error) {
-	start := time.Now()
-	if req.UserID == "" {
-		return nil, errors.New("user_id is required")
-	}
+// HistoryItem is a recent positive event with catalog metadata.
+type HistoryItem struct {
+	HistoryEvent
+	Video *catalog.VideoItem `json:"video,omitempty"`
+}
 
-	topK := req.TopK
-	if topK <= 0 {
-		topK = 10
+// User returns the profile of a known user.
+func (e *Engine) User(userID string) (*UserDetail, bool) {
+	status, profile := e.Status(userID)
+	if status == explanation.UserUnknown {
+		return nil, false
 	}
-	if topK > 50 {
-		topK = 50
-	}
-
-	e.mu.RLock()
-	history := e.userHistory[req.UserID]
-	itemSims := e.itemSims
-	precomputed := e.precomputed[req.UserID]
-	comparison := e.comparisons[activeModel][req.UserID]
-	e.mu.RUnlock()
-
-	seen := make(map[string]struct{}, len(history))
-	if req.ExcludeSeen {
-		for _, record := range history { seen[record.ItemID] = struct{}{} }
-	}
-
-	// Serve Syed's exact saved predictions. Baseline/experimental switches use
-	// validation comparison outputs for the curated demo users only.
-	stored := precomputed
-	if activeModel != "hybrid-validation-selected-v1" { stored = comparison }
-	if len(stored) > 0 {
-		candidate := make(map[string]bool)
-		for _, id := range req.CandidateIDs { candidate[id] = true }
-		out := make([]RecommendedItem, 0, topK)
-		for _, item := range stored {
-			if _, alreadySeen := seen[item.ItemID]; alreadySeen { continue }
-			if len(candidate) > 0 && !candidate[item.ItemID] { continue }
-			if video, ok := e.catRepo.Get(item.ItemID); ok { copy := video; item.Video = &copy }
-			item.Rank = len(out)+1; out = append(out,item)
-			if len(out) == topK { break }
+	detail := &UserDetail{UserID: userID, Status: status, SeenItems: profile.SeenItems,
+		PositiveHistoryItems: profile.PositiveHistoryItems, RecentPositive: []HistoryItem{}}
+	_, detail.HasComparisonExport = e.comparisons[e.manifest.CurrentModel][userID]
+	for _, event := range profile.RecentPositive {
+		h := HistoryItem{HistoryEvent: event}
+		if video, ok := e.catalog.Get(event.ItemID); ok {
+			h.Video = &video
 		}
-		return &RecommendationResponse{UserID:req.UserID,Model:activeModel,TopK:len(out),Recommendations:out,Fallback:false,GeneratedAt:time.Now().UTC().Format(time.RFC3339),LatencyMs:float64(time.Since(start).Microseconds())/1000},nil
+		detail.RecentPositive = append(detail.RecentPositive, h)
 	}
+	return detail, true
+}
 
-	allVideos := e.catRepo.ListAll()
-	if len(allVideos) == 0 {
-		return nil, errors.New("catalog is empty")
-	}
-
-	// Candidate pool
-	candidateFilter := make(map[string]bool)
-	if len(req.CandidateIDs) > 0 {
-		for _, cid := range req.CandidateIDs {
-			candidateFilter[cid] = true
+// SimilarItems returns frozen Item-CF neighbors ordered by similarity.
+func (e *Engine) SimilarItems(itemID string, limit int) []SimilarItem {
+	neighbors := e.itemSims[itemID]
+	items := make([]SimilarItem, 0, len(neighbors))
+	for neighborID, score := range neighbors {
+		if video, ok := e.catalog.Get(neighborID); ok {
+			items = append(items, SimilarItem{ItemID: neighborID, Score: score, Video: &video})
 		}
 	}
-
-	var candidates []catalog.VideoItem
-	for _, v := range allVideos {
-		if _, alreadySeen := seen[v.ItemID]; alreadySeen {
-			continue
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Score == items[j].Score {
+			return lessNumeric(items[i].ItemID, items[j].ItemID)
 		}
-		if len(candidateFilter) > 0 && !candidateFilter[v.ItemID] {
-			continue
-		}
-		candidates = append(candidates, v)
-	}
-
-
-	// Unknown users use the frozen training-only popularity order.
-	isColdStart := len(history) == 0
-
-	var ranked []RecommendedItem
-	modelToUse := activeModel
-
-	if isColdStart {
-		byID := make(map[string]catalog.VideoItem,len(candidates)); for _, v := range candidates { byID[v.ItemID]=v }
-		for _, id := range e.popularity { if v,ok:=byID[id]; ok { ranked=append(ranked,RecommendedItem{ItemID:id,Score:float64(v.TotalViews),Source:"popularity-fallback",Reasons:[]explanation.Reason{e.explainer.ColdStart()}}) } }
-		modelToUse = "popularity-positive-event-count-v1"
-		for i := range ranked {
-			ranked[i].Source = "popularity-fallback"
-			ranked[i].Reasons = []explanation.Reason{e.explainer.ColdStart()}
-		}
-	} else {
-		switch activeModel {
-		case "popularity-positive-event-count-v1":
-			ranked = e.scorePopularity(candidates)
-		case "item-cf-cosine-v1":
-			ranked = e.scoreItemCF(candidates, history, itemSims)
-		case "lightgcn-validation-selected-v1":
-			ranked = e.scoreLightGCN(candidates, history)
-		case "hybrid-validation-selected-v1":
-			fallthrough
-		default:
-			ranked = e.scoreHybrid(candidates, history, itemSims)
-			modelToUse = "hybrid-validation-selected-v1"
-		}
-	}
-
-	// Sort descending by score
-	sort.Slice(ranked, func(i, j int) bool {
-		return ranked[i].Score > ranked[j].Score
+		return items[i].Score > items[j].Score
 	})
-
-	// Truncate to top-K and assign ranks
-	if len(ranked) > topK {
-		ranked = ranked[:topK]
+	if len(items) > limit {
+		items = items[:limit]
 	}
-	for i := range ranked {
-		ranked[i].Rank = i + 1
-		// Enrich with video metadata
-		if v, ok := e.catRepo.Get(ranked[i].ItemID); ok {
-			vCopy := v
-			ranked[i].Video = &vCopy
-		}
-	}
-
-	duration := time.Since(start)
-
-	return &RecommendationResponse{
-		UserID:          req.UserID,
-		Model:           modelToUse,
-		TopK:            len(ranked),
-		Recommendations: ranked,
-		Fallback:        isColdStart,
-		GeneratedAt:     time.Now().UTC().Format(time.RFC3339),
-		LatencyMs:       float64(duration.Microseconds()) / 1000.0,
-	}, nil
+	return items
 }
 
-// Popularity baseline: score(v) = log10(views) * (watch_ratio_avg)
-func (e *Engine) scorePopularity(candidates []catalog.VideoItem) []RecommendedItem {
-	var maxScore float64 = 0.0001
-	type scored struct {
-		item  catalog.VideoItem
-		score float64
+func lessNumeric(a, b string) bool {
+	if len(a) != len(b) {
+		return len(a) < len(b)
 	}
-	raw := make([]scored, len(candidates))
-
-	for i, c := range candidates {
-		views := float64(c.TotalViews)
-		if views < 1 {
-			views = 1
-		}
-		s := math.Log10(views) * c.WatchRatioAvg
-		raw[i] = scored{item: c, score: s}
-		if s > maxScore {
-			maxScore = s
-		}
-	}
-
-	res := make([]RecommendedItem, len(candidates))
-	for i, r := range raw {
-		normScore := math.Round((r.score/maxScore)*1000) / 1000
-		res[i] = RecommendedItem{
-			ItemID: r.item.ItemID,
-			Score:  normScore,
-			Source: "popularity",
-			Reasons: []explanation.Reason{
-				e.explainer.PopularInTraining(normScore, r.item.TotalViews),
-			},
-		}
-	}
-	return res
+	return a < b
 }
 
-// Item-CF: score(u,v) = sum(sim(v,h)*pref(u,h)) / sum(abs(sim(v,h)))
-func (e *Engine) scoreItemCF(candidates []catalog.VideoItem, history []InteractionRecord, itemSims map[string]map[string]float64) []RecommendedItem {
-	res := make([]RecommendedItem, len(candidates))
-
-	for i, c := range candidates {
-		var simSum, weightSum float64
-		var bestSourceItem string
-		var bestSim float64
-
-		for _, h := range history {
-			sim := 0.0
-			if sMap, ok := itemSims[c.ItemID]; ok {
-				sim = sMap[h.ItemID]
-			}
-			if sim == 0 {
-				if sMap, ok := itemSims[h.ItemID]; ok {
-					sim = sMap[c.ItemID]
-				}
-			}
-
-			if sim > 0 {
-				weight := h.WatchRatio
-				if weight <= 0 {
-					weight = 1.0
-				}
-				simSum += sim * weight
-				weightSum += sim
-
-				if sim > bestSim {
-					bestSim = sim
-					bestSourceItem = h.ItemID
-				}
-			}
-		}
-
-		score := 0.0
-		if weightSum > 0 {
-			score = simSum / weightSum
-		} else {
-			// tiny baseline for unlinked items
-			score = 0.05
-		}
-
-		score = math.Min(1.0, math.Round(score*1000)/1000)
-
-		var reasons []explanation.Reason
-		if bestSim >= 0.40 && bestSourceItem != "" {
-			reasons = append(reasons, e.explainer.SimilarToRecent(bestSourceItem, bestSim))
-		} else {
-			reasons = append(reasons, e.explainer.LikedBySimilarUsers(score, 0.65))
-		}
-
-		res[i] = RecommendedItem{
-			ItemID:  c.ItemID,
-			Score:   score,
-			Source:  "item_cf",
-			Reasons: reasons,
-		}
+func readJSON(path string, target any) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", filepath.Base(path), err)
 	}
-	return res
+	if err := json.Unmarshal(raw, target); err != nil {
+		return fmt.Errorf("parse %s: %w", filepath.Base(path), err)
+	}
+	return nil
 }
 
-// LightGCN graph bipartite score simulation
-func (e *Engine) scoreLightGCN(candidates []catalog.VideoItem, history []InteractionRecord) []RecommendedItem {
-	historyCats := make(map[string]int)
-	for _, h := range history {
-		if v, ok := e.catRepo.Get(h.ItemID); ok {
-			historyCats[v.Category]++
-		}
+// readMaybeGzip prefers name+".gz" and falls back to the plain file.
+func readMaybeGzip(dir, name string, target any) error {
+	path := filepath.Join(dir, name+".gz")
+	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return readJSON(filepath.Join(dir, name), target)
 	}
-
-	res := make([]RecommendedItem, len(candidates))
-	for i, c := range candidates {
-		catAffinity := float64(historyCats[c.Category]) / float64(len(history)+1)
-		viewsFactor := math.Min(1.0, float64(c.TotalViews)/400000.0)
-
-		graphScore := 0.60*catAffinity + 0.40*viewsFactor
-		graphScore = math.Min(0.98, math.Max(0.10, math.Round(graphScore*1000)/1000))
-
-		res[i] = RecommendedItem{
-			ItemID: c.ItemID,
-			Score:  graphScore,
-			Source: "lightgcn",
-			Reasons: []explanation.Reason{
-				e.explainer.ExtensionModelMatch(graphScore, 2),
-			},
-		}
+	if err != nil {
+		return err
 	}
-	return res
+	defer file.Close()
+	reader, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", filepath.Base(path), err)
+	}
+	defer reader.Close()
+	if err := json.NewDecoder(reader).Decode(target); err != nil {
+		return fmt.Errorf("parse %s: %w", filepath.Base(path), err)
+	}
+	return nil
 }
 
-// Hybrid Ranker combining CF, LightGCN, and Popularity
-func (e *Engine) scoreHybrid(candidates []catalog.VideoItem, history []InteractionRecord, itemSims map[string]map[string]float64) []RecommendedItem {
-	cfScores := e.scoreItemCF(candidates, history, itemSims)
-	graphScores := e.scoreLightGCN(candidates, history)
-	popScores := e.scorePopularity(candidates)
-
-	cfMap := make(map[string]RecommendedItem)
-	for _, item := range cfScores {
-		cfMap[item.ItemID] = item
-	}
-
-	graphMap := make(map[string]RecommendedItem)
-	for _, item := range graphScores {
-		graphMap[item.ItemID] = item
-	}
-
-	popMap := make(map[string]RecommendedItem)
-	for _, item := range popScores {
-		popMap[item.ItemID] = item
-	}
-
-	alpha := e.hybridWeight.Alpha
-	beta := e.hybridWeight.Beta
-	gamma := e.hybridWeight.Gamma
-
-	res := make([]RecommendedItem, len(candidates))
-	for i, c := range candidates {
-		sCF := cfMap[c.ItemID].Score
-		sGraph := graphMap[c.ItemID].Score
-		sPop := popMap[c.ItemID].Score
-
-		hybridScore := (alpha * sCF) + (beta * sGraph) + (gamma * sPop)
-		hybridScore = math.Round(hybridScore*1000) / 1000
-
-		// Composite reasons: prioritize CF similar_to_recent, add secondary graph signal
-		var reasons []explanation.Reason
-		if len(cfMap[c.ItemID].Reasons) > 0 {
-			reasons = append(reasons, cfMap[c.ItemID].Reasons[0])
-		}
-		if sPop > 0.80 {
-			reasons = append(reasons, e.explainer.PopularInTraining(sPop, c.TotalViews))
-		} else if sGraph > 0.70 {
-			reasons = append(reasons, e.explainer.ExtensionModelMatch(sGraph, 2))
-		}
-
-		res[i] = RecommendedItem{
-			ItemID:  c.ItemID,
-			Score:   hybridScore,
-			Source:  "hybrid",
-			Reasons: reasons,
-		}
-	}
-	return res
-}
-
-// Compare returns recommendations for all 4 models simultaneously for the given user
-func (e *Engine) Compare(userID string, topK int) (map[string]*RecommendationResponse, error) {
-	if topK <= 0 {
-		topK = 5
-	}
-
-	models := []string{"popularity-positive-event-count-v1", "item-cf-cosine-v1", "lightgcn-validation-selected-v1", "hybrid-validation-selected-v1"}
-	results := make(map[string]*RecommendationResponse)
-
-	for _, m := range models {
-		resp, err := e.recommendForModel(RecommendationRequest{
-			UserID:      userID,
-			TopK:        topK,
-			ExcludeSeen: true,
-		}, m)
+func verifyBundle(dir string, expected map[string]string) error {
+	for name, want := range expected {
+		file, err := os.Open(filepath.Join(dir, name))
 		if err != nil {
-			return nil, err
+			return fmt.Errorf("%w: %s: %v", errBundleChecksumFails, name, err)
 		}
-		results[m] = resp
+		digest := sha256.New()
+		_, err = io.Copy(digest, file)
+		file.Close()
+		if err != nil {
+			return err
+		}
+		if got := hex.EncodeToString(digest.Sum(nil)); got != want {
+			return fmt.Errorf("%w: %s has %s, manifest expects %s", errBundleChecksumFails, name, got, want)
+		}
 	}
-
-	return results, nil
+	return nil
 }

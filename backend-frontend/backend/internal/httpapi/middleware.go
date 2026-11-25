@@ -1,64 +1,70 @@
 package httpapi
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
-	"strings"
+	"runtime/debug"
 	"time"
+
+	"github.com/Shayanmustufa/KuaiRec-Video-Recommender-System/backend/internal/database"
+	"github.com/Shayanmustufa/KuaiRec-Video-Recommender-System/backend/internal/telemetry"
 )
 
-func CorsMiddleware(allowedOrigins []string) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-			if origin != "" {
-				allowed := false
-				for _, o := range allowedOrigins {
-					if o == "*" || strings.EqualFold(o, origin) { allowed = true; break }
-				}
-				if !allowed {
-					if r.Method == http.MethodOptions { http.Error(w, "Origin not allowed", http.StatusForbidden); return }
-					next.ServeHTTP(w, r); return
-				}
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-				w.Header().Add("Vary", "Origin")
-			}
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
-			w.Header().Set("Access-Control-Max-Age", "86400")
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusNoContent)
-				return
-			}
-
-			next.ServeHTTP(w, r)
-		})
-	}
-}
-
-func LoggingMiddleware(next http.Handler) http.Handler {
+// AccessLog records status and latency, emits one structured JSON log line
+// per request, and persists the request in the api_requests table.
+func (h *Handler) AccessLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		reqID := r.Header.Get("X-Request-ID")
+		rec := telemetry.NewStatusRecorder(w, start)
+		next.ServeHTTP(rec, r)
+		duration := time.Since(start)
+		h.metrics.Observe(rec.Status, duration)
 
-		next.ServeHTTP(w, r)
+		requestID := telemetry.RequestID(r.Context())
+		durationMs := float64(duration.Microseconds()) / 1000
+		probe := r.URL.Path == "/healthz" || r.URL.Path == "/readyz"
+		level := slog.LevelInfo
+		switch {
+		case rec.Status >= 500:
+			level = slog.LevelError
+		case rec.Status >= 400:
+			level = slog.LevelWarn
+		case probe:
+			level = slog.LevelDebug
+		}
+		slog.Log(r.Context(), level, "http_request",
+			"request_id", requestID, "method", r.Method, "path", r.URL.Path,
+			"status", rec.Status, "duration_ms", durationMs, "remote_addr", r.RemoteAddr)
 
-		slog.Info("Handled request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"request_id", reqID,
-			"duration", time.Since(start).String(),
-		)
+		if probe || !h.logRequestsToDB || r.Method == http.MethodOptions {
+			return
+		}
+		entry := database.APIRequest{RequestID: requestID, Method: r.Method, Path: r.URL.Path,
+			Status: rec.Status, DurationMs: durationMs, RemoteAddr: r.RemoteAddr}
+		h.background.Add(1)
+		go func() {
+			defer h.background.Done()
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := h.db.LogAPIRequest(ctx, entry); err != nil {
+				slog.Warn("api request log not persisted", "request_id", requestID, "error", err)
+			}
+		}()
 	})
 }
 
-func RecoveryMiddleware(next http.Handler) http.Handler {
+// Recoverer converts panics into a JSON 500 and logs the stack.
+func Recoverer(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
 			if rec := recover(); rec != nil {
-				slog.Error("Panic recovered in HTTP handler", "panic", rec)
-				http.Error(w, `{"error": "Internal server error"}`, http.StatusInternalServerError)
+				if rec == http.ErrAbortHandler {
+					panic(rec)
+				}
+				slog.Error("panic recovered", "request_id", telemetry.RequestID(r.Context()),
+					"panic", rec, "stack", string(debug.Stack()))
+				writeError(w, http.StatusInternalServerError, "internal server error")
 			}
 		}()
 		next.ServeHTTP(w, r)

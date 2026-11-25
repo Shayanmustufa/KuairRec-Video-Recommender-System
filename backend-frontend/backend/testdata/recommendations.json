@@ -1,0 +1,244 @@
+{
+ "1": [
+  {
+   "item_id": "3",
+   "rank": 1,
+   "score": 0.92,
+   "source": "hybrid-validation-selected-v1",
+   "components": {
+    "item_cf": {
+     "normalized_score": 1.0,
+     "weight": 0.9,
+     "contribution": 0.9
+    },
+    "lightgcn": {
+     "normalized_score": 0.5,
+     "weight": 0.0,
+     "contribution": 0.0
+    },
+    "popularity": {
+     "normalized_score": 0.2,
+     "weight": 0.1,
+     "contribution": 0.02
+    }
+   },
+   "reasons": [
+    {
+     "code": "liked_by_similar_users",
+     "text": "Recommended from collaborative patterns linked to your positive history.",
+     "evidence": {
+      "source_video_id": "5",
+      "similarity": 0.4,
+      "preference_strength": 1.5,
+      "contribution": 0.6,
+      "item_cf_weight": 0.9
+     }
+    },
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 30,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "item_id": "1",
+   "rank": 2,
+   "score": 0.81,
+   "source": "hybrid-validation-selected-v1",
+   "components": {
+    "item_cf": {
+     "normalized_score": 1.0,
+     "weight": 0.9,
+     "contribution": 0.9
+    },
+    "lightgcn": {
+     "normalized_score": 0.5,
+     "weight": 0.0,
+     "contribution": 0.0
+    },
+    "popularity": {
+     "normalized_score": 0.2,
+     "weight": 0.1,
+     "contribution": 0.02
+    }
+   },
+   "reasons": [
+    {
+     "code": "liked_by_similar_users",
+     "text": "Recommended from collaborative patterns linked to your positive history.",
+     "evidence": {
+      "source_video_id": "5",
+      "similarity": 0.4,
+      "preference_strength": 1.5,
+      "contribution": 0.6,
+      "item_cf_weight": 0.9
+     }
+    },
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 50,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "item_id": "4",
+   "rank": 3,
+   "score": 0.7,
+   "source": "hybrid-validation-selected-v1",
+   "components": {
+    "item_cf": {
+     "normalized_score": 1.0,
+     "weight": 0.9,
+     "contribution": 0.9
+    },
+    "lightgcn": {
+     "normalized_score": 0.5,
+     "weight": 0.0,
+     "contribution": 0.0
+    },
+    "popularity": {
+     "normalized_score": 0.2,
+     "weight": 0.1,
+     "contribution": 0.02
+    }
+   },
+   "reasons": [
+    {
+     "code": "liked_by_similar_users",
+     "text": "Recommended from collaborative patterns linked to your positive history.",
+     "evidence": {
+      "source_video_id": "5",
+      "similarity": 0.4,
+      "preference_strength": 1.5,
+      "contribution": 0.6,
+      "item_cf_weight": 0.9
+     }
+    },
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 20,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  },
+  {
+   "item_id": "2",
+   "rank": 4,
+   "score": 0.5,
+   "source": "hybrid-validation-selected-v1",
+   "components": {
+    "item_cf": {
+     "normalized_score": 1.0,
+     "weight": 0.9,
+     "contribution": 0.9
+    },
+    "lightgcn": {
+     "normalized_score": 0.5,
+     "weight": 0.0,
+     "contribution": 0.0
+    },
+    "popularity": {
+     "normalized_score": 0.2,
+     "weight": 0.1,
+     "contribution": 0.02
+    }
+   },
+   "reasons": [
+    {
+     "code": "liked_by_similar_users",
+     "text": "Recommended from collaborative patterns linked to your positive history.",
+     "evidence": {
+      "source_video_id": "5",
+      "similarity": 0.4,
+      "preference_strength": 1.5,
+      "contribution": 0.6,
+      "item_cf_weight": 0.9
+     }
+    },
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 40,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  }
+ ],
+ "2": [
+  {
+   "item_id": "1",
+   "rank": 1,
+   "score": 0.1,
+   "source": "hybrid-validation-selected-v1",
+   "reasons": [
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 50,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  }
+ ],
+ "3": [
+  {
+   "item_id": "2",
+   "rank": 1,
+   "score": 0.66,
+   "source": "hybrid-validation-selected-v1",
+   "components": {
+    "item_cf": {
+     "normalized_score": 1.0,
+     "weight": 0.9,
+     "contribution": 0.9
+    },
+    "lightgcn": {
+     "normalized_score": 0.5,
+     "weight": 0.0,
+     "contribution": 0.0
+    },
+    "popularity": {
+     "normalized_score": 0.2,
+     "weight": 0.1,
+     "contribution": 0.02
+    }
+   },
+   "reasons": [
+    {
+     "code": "liked_by_similar_users",
+     "text": "Recommended from collaborative patterns linked to your positive history.",
+     "evidence": {
+      "source_video_id": "5",
+      "similarity": 0.4,
+      "preference_strength": 1.5,
+      "contribution": 0.6,
+      "item_cf_weight": 0.9
+     }
+    },
+    {
+     "code": "popular_in_training",
+     "text": "Popular in positive training interactions.",
+     "evidence": {
+      "positive_training_event_count": 40,
+      "popularity_weight": 0.1
+     }
+    }
+   ]
+  }
+ ]
+}

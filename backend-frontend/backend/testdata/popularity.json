@@ -1,0 +1,34 @@
+[
+ {
+  "item_id": "1",
+  "positive_training_event_count": 50
+ },
+ {
+  "item_id": "2",
+  "positive_training_event_count": 40
+ },
+ {
+  "item_id": "3",
+  "positive_training_event_count": 30
+ },
+ {
+  "item_id": "4",
+  "positive_training_event_count": 20
+ },
+ {
+  "item_id": "5",
+  "positive_training_event_count": 10
+ },
+ {
+  "item_id": "6",
+  "positive_training_event_count": 5
+ },
+ {
+  "item_id": "7",
+  "positive_training_event_count": 2
+ },
+ {
+  "item_id": "8",
+  "positive_training_event_count": 1
+ }
+]

@@ -1,0 +1,31 @@
+{
+ "1": {
+  "seen_items": 2,
+  "positive_history_items": 1,
+  "demo": true,
+  "seen_item_ids": [
+   "5",
+   "7"
+  ],
+  "recent_positive": [
+   {
+    "item_id": "5",
+    "timestamp": 1593878903.4,
+    "watch_ratio": 2.5
+   }
+  ]
+ },
+ "2": {
+  "seen_items": 1,
+  "positive_history_items": 0,
+  "demo": true,
+  "seen_item_ids": [
+   "1"
+  ],
+  "recent_positive": []
+ },
+ "3": {
+  "seen_items": 4,
+  "positive_history_items": 3
+ }
+}

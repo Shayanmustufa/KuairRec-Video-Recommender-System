@@ -1,104 +1,183 @@
 {
-  "evaluation_protocol": {
-    "dataset": "KuaiRec Official Release v2.0",
-    "training_split": "70% (Earliest interactions)",
-    "validation_split": "15% (Intermediate interactions)",
-    "test_split": "15% (Latest interactions, leak-free holdout)",
-    "target_threshold": "watch_ratio >= 1.0",
-    "candidate_pool": "100 sampled negatives + held-out positives per user",
-    "evaluation_users_count": 7176,
-    "catalog_size": 10728
+ "evaluation_protocol": {
+  "dataset": "synthetic"
+ },
+ "validation_metrics": [
+  {
+   "id": "popularity-positive-event-count-v1",
+   "name": "Popularity baseline",
+   "type": "baseline",
+   "description": "test",
+   "is_fallback": true,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
   },
-  "overall_metrics": [
-    {
-      "model_id": "popularity-v1",
-      "model_name": "Popularity Baseline",
-      "recall_at_10": 0.0820,
-      "recall_at_20": 0.1240,
-      "ndcg_at_10": 0.0610,
-      "ndcg_at_20": 0.0870,
-      "hit_rate_at_10": 0.1450,
-      "precision_at_10": 0.0380,
-      "catalog_coverage": 0.4200,
-      "cold_start_coverage": 1.0000
-    },
-    {
-      "model_id": "itemcf-v1",
-      "model_name": "Item-Based Collaborative Filtering",
-      "recall_at_10": 0.1740,
-      "recall_at_20": 0.2430,
-      "ndcg_at_10": 0.1420,
-      "ndcg_at_20": 0.1810,
-      "hit_rate_at_10": 0.2980,
-      "precision_at_10": 0.0890,
-      "catalog_coverage": 0.6850,
-      "cold_start_coverage": 0.0000
-    },
-    {
-      "model_id": "lightgcn-v1",
-      "model_name": "LightGCN Graph Extension",
-      "recall_at_10": 0.2180,
-      "recall_at_20": 0.2980,
-      "ndcg_at_10": 0.1830,
-      "ndcg_at_20": 0.2310,
-      "hit_rate_at_10": 0.3640,
-      "precision_at_10": 0.1120,
-      "catalog_coverage": 0.7920,
-      "cold_start_coverage": 0.0000
-    },
-    {
-      "model_id": "hybrid-v1",
-      "model_name": "Validation-Tuned Hybrid Ranker (Best)",
-      "recall_at_10": 0.2540,
-      "recall_at_20": 0.3420,
-      "ndcg_at_10": 0.2150,
-      "ndcg_at_20": 0.2720,
-      "hit_rate_at_10": 0.4120,
-      "precision_at_10": 0.1340,
-      "catalog_coverage": 0.8460,
-      "cold_start_coverage": 1.0000
-    }
-  ],
-  "hybrid_weight_ablations": [
-    {
-      "experiment": "CF Only (alpha=1.0, beta=0.0, gamma=0.0)",
-      "alpha_cf": 1.0,
-      "beta_extension": 0.0,
-      "gamma_popularity": 0.0,
-      "recall_at_10": 0.1740,
-      "ndcg_at_10": 0.1420
-    },
-    {
-      "experiment": "LightGCN Only (alpha=0.0, beta=1.0, gamma=0.0)",
-      "alpha_cf": 0.0,
-      "beta_extension": 1.0,
-      "gamma_popularity": 0.0,
-      "recall_at_10": 0.2180,
-      "ndcg_at_10": 0.1830
-    },
-    {
-      "experiment": "CF + LightGCN Equal (alpha=0.5, beta=0.5, gamma=0.0)",
-      "alpha_cf": 0.5,
-      "beta_extension": 0.5,
-      "gamma_popularity": 0.0,
-      "recall_at_10": 0.2390,
-      "ndcg_at_10": 0.2010
-    },
-    {
-      "experiment": "CF + LightGCN + Popularity Dampened (alpha=0.45, beta=0.35, gamma=0.20)",
-      "alpha_cf": 0.45,
-      "beta_extension": 0.35,
-      "gamma_popularity": 0.20,
-      "recall_at_10": 0.2540,
-      "ndcg_at_10": 0.2150
-    },
-    {
-      "experiment": "Popularity Dominated (alpha=0.2, beta=0.2, gamma=0.6)",
-      "alpha_cf": 0.2,
-      "beta_extension": 0.2,
-      "gamma_popularity": 0.6,
-      "recall_at_10": 0.1380,
-      "ndcg_at_10": 0.1050
-    }
-  ]
+  {
+   "id": "item-cf-cosine-v1",
+   "name": "Item-CF",
+   "type": "collaborative",
+   "description": "test",
+   "is_fallback": false,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "lightgcn-validation-selected-v1",
+   "name": "LightGCN (rejected experiment)",
+   "type": "experimental",
+   "description": "test",
+   "is_fallback": false,
+   "status": "rejected",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "hybrid-validation-selected-v1",
+   "name": "Selected hybrid",
+   "type": "hybrid",
+   "description": "test",
+   "is_fallback": false,
+   "status": "selected",
+   "weights": {
+    "alpha_cf": 0.9,
+    "beta_extension": 0.0,
+    "gamma_popularity": 0.1
+   },
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  }
+ ],
+ "overall_metrics": [
+  {
+   "id": "popularity-positive-event-count-v1",
+   "name": "Popularity baseline",
+   "type": "baseline",
+   "description": "test",
+   "is_fallback": true,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "item-cf-cosine-v1",
+   "name": "Item-CF",
+   "type": "collaborative",
+   "description": "test",
+   "is_fallback": false,
+   "status": "baseline",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "lightgcn-validation-selected-v1",
+   "name": "LightGCN (rejected experiment)",
+   "type": "experimental",
+   "description": "test",
+   "is_fallback": false,
+   "status": "rejected",
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  },
+  {
+   "id": "hybrid-validation-selected-v1",
+   "name": "Selected hybrid",
+   "type": "hybrid",
+   "description": "test",
+   "is_fallback": false,
+   "status": "selected",
+   "weights": {
+    "alpha_cf": 0.9,
+    "beta_extension": 0.0,
+    "gamma_popularity": 0.1
+   },
+   "metrics": {
+    "recall_at_10": 0.01,
+    "recall_at_20": 0.02,
+    "ndcg_at_10": 0.01,
+    "ndcg_at_20": 0.02,
+    "hit_rate_at_10": 0.1,
+    "hit_rate_at_20": 0.2,
+    "precision_at_10": 0.01,
+    "precision_at_20": 0.01,
+    "catalog_coverage": 0.5
+   }
+  }
+ ],
+ "controlled_test": {
+  "model_id": "hybrid-validation-selected-v1",
+  "recall_at_10": 0.01,
+  "recall_at_20": 0.02,
+  "ndcg_at_10": 0.01,
+  "ndcg_at_20": 0.02,
+  "hit_rate_at_10": 0.1,
+  "hit_rate_at_20": 0.2,
+  "precision_at_10": 0.01,
+  "precision_at_20": 0.01,
+  "catalog_coverage": 0.5
+ }
 }

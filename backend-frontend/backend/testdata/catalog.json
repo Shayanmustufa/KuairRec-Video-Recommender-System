@@ -1,222 +1,122 @@
 [
-  {
-    "item_id": "v_101",
-    "title": "Top 10 Hilarious Gaming Moments 2026",
-    "category": "Gaming",
-    "duration_seconds": 45,
-    "tags": ["gaming", "funny", "clips", "highlight"],
-    "author_id": "creator_99",
-    "upload_date": "2026-01-10T12:00:00Z",
-    "watch_ratio_avg": 1.42,
-    "total_views": 154200
-  },
-  {
-    "item_id": "v_102",
-    "title": "Speedrun Glitch Tutorial: Jump Cancel",
-    "category": "Gaming",
-    "duration_seconds": 32,
-    "tags": ["gaming", "tutorial", "speedrun"],
-    "author_id": "creator_99",
-    "upload_date": "2026-01-12T14:30:00Z",
-    "watch_ratio_avg": 1.35,
-    "total_views": 89200
-  },
-  {
-    "item_id": "v_103",
-    "title": "Viral Shuffle Dance Trend Choreography",
-    "category": "Dance",
-    "duration_seconds": 18,
-    "tags": ["dance", "trending", "choreography"],
-    "author_id": "creator_42",
-    "upload_date": "2026-01-14T09:15:00Z",
-    "watch_ratio_avg": 1.78,
-    "total_views": 340100
-  },
-  {
-    "item_id": "v_104",
-    "title": "Street Dance Battle Finals Tokyo",
-    "category": "Dance",
-    "duration_seconds": 25,
-    "tags": ["dance", "battle", "hiphop"],
-    "author_id": "creator_42",
-    "upload_date": "2026-01-15T18:00:00Z",
-    "watch_ratio_avg": 1.60,
-    "total_views": 210400
-  },
-  {
-    "item_id": "v_105",
-    "title": "Crispy Garlic Butter Steak Bites",
-    "category": "Food",
-    "duration_seconds": 58,
-    "tags": ["food", "recipe", "cooking", "steak"],
-    "author_id": "creator_12",
-    "upload_date": "2026-01-16T11:20:00Z",
-    "watch_ratio_avg": 1.25,
-    "total_views": 195000
-  },
-  {
-    "item_id": "v_106",
-    "title": "15-Minute Creamy Spicy Ramen Hack",
-    "category": "Food",
-    "duration_seconds": 40,
-    "tags": ["food", "ramen", "quickmeals"],
-    "author_id": "creator_12",
-    "upload_date": "2026-01-18T13:45:00Z",
-    "watch_ratio_avg": 1.55,
-    "total_views": 260300
-  },
-  {
-    "item_id": "v_107",
-    "title": "POV: When Your Cat Thinks It Is Human",
-    "category": "Pets",
-    "duration_seconds": 22,
-    "tags": ["pets", "cat", "cute", "comedy"],
-    "author_id": "creator_77",
-    "upload_date": "2026-01-19T08:10:00Z",
-    "watch_ratio_avg": 1.88,
-    "total_views": 420000
-  },
-  {
-    "item_id": "v_108",
-    "title": "Golden Retriever Meets Tiny Puppy",
-    "category": "Pets",
-    "duration_seconds": 30,
-    "tags": ["pets", "dog", "puppy", "wholesome"],
-    "author_id": "creator_77",
-    "upload_date": "2026-01-20T16:20:00Z",
-    "watch_ratio_avg": 1.92,
-    "total_views": 510000
-  },
-  {
-    "item_id": "v_109",
-    "title": "Lo-Fi Beats Live Performance on Synthesizer",
-    "category": "Music",
-    "duration_seconds": 60,
-    "tags": ["music", "lofi", "chill", "synth"],
-    "author_id": "creator_31",
-    "upload_date": "2026-01-21T20:00:00Z",
-    "watch_ratio_avg": 1.15,
-    "total_views": 115000
-  },
-  {
-    "item_id": "v_110",
-    "title": "Acoustic Fingerstyle Guitar Cover",
-    "category": "Music",
-    "duration_seconds": 45,
-    "tags": ["music", "guitar", "acoustic"],
-    "author_id": "creator_31",
-    "upload_date": "2026-01-22T17:30:00Z",
-    "watch_ratio_avg": 1.30,
-    "total_views": 142000
-  },
-  {
-    "item_id": "v_111",
-    "title": "Stand-up Comedy: Software Engineers in Real Life",
-    "category": "Comedy",
-    "duration_seconds": 50,
-    "tags": ["comedy", "tech", "relatable", "humor"],
-    "author_id": "creator_88",
-    "upload_date": "2026-01-23T19:00:00Z",
-    "watch_ratio_avg": 1.65,
-    "total_views": 380000
-  },
-  {
-    "item_id": "v_112",
-    "title": "Expectation vs Reality: Remote Work Meetings",
-    "category": "Comedy",
-    "duration_seconds": 35,
-    "tags": ["comedy", "work", "funny", "skit"],
-    "author_id": "creator_88",
-    "upload_date": "2026-01-24T10:15:00Z",
-    "watch_ratio_avg": 1.48,
-    "total_views": 290000
-  },
-  {
-    "item_id": "v_113",
-    "title": "Incredible Calisthenics Routine in Under 60s",
-    "category": "Sports",
-    "duration_seconds": 55,
-    "tags": ["sports", "fitness", "workout"],
-    "author_id": "creator_55",
-    "upload_date": "2026-01-25T07:45:00Z",
-    "watch_ratio_avg": 1.20,
-    "total_views": 178000
-  },
-  {
-    "item_id": "v_114",
-    "title": "Insane Parkour Roof Gap Jump",
-    "category": "Sports",
-    "duration_seconds": 28,
-    "tags": ["sports", "parkour", "adrenaline"],
-    "author_id": "creator_55",
-    "upload_date": "2026-01-26T15:10:00Z",
-    "watch_ratio_avg": 1.70,
-    "total_views": 330000
-  },
-  {
-    "item_id": "v_115",
-    "title": "New M4 Chip Teardown and Thermal Analysis",
-    "category": "Tech",
-    "duration_seconds": 58,
-    "tags": ["tech", "hardware", "engineering", "chips"],
-    "author_id": "creator_05",
-    "upload_date": "2026-01-27T12:00:00Z",
-    "watch_ratio_avg": 1.38,
-    "total_views": 220000
-  },
-  {
-    "item_id": "v_116",
-    "title": "How Recommendation Algorithms Actually Work",
-    "category": "Tech",
-    "duration_seconds": 60,
-    "tags": ["tech", "ai", "datascience", "machinelearning"],
-    "author_id": "creator_05",
-    "upload_date": "2026-01-28T14:20:00Z",
-    "watch_ratio_avg": 1.50,
-    "total_views": 245000
-  },
-  {
-    "item_id": "v_117",
-    "title": "Rainy Day Coffee Brewing in Kyoto",
-    "category": "Life/Vlog",
-    "duration_seconds": 45,
-    "tags": ["vlog", "coffee", "aesthetic", "japan"],
-    "author_id": "creator_63",
-    "upload_date": "2026-01-29T08:30:00Z",
-    "watch_ratio_avg": 1.22,
-    "total_views": 160000
-  },
-  {
-    "item_id": "v_118",
-    "title": "A Day in My Life as an AI Researcher",
-    "category": "Life/Vlog",
-    "duration_seconds": 59,
-    "tags": ["vlog", "routine", "techlife"],
-    "author_id": "creator_63",
-    "upload_date": "2026-01-30T11:00:00Z",
-    "watch_ratio_avg": 1.34,
-    "total_views": 185000
-  },
-  {
-    "item_id": "v_119",
-    "title": "Unreal Engine 5 Next-Gen Graphics Showcase",
-    "category": "Gaming",
-    "duration_seconds": 48,
-    "tags": ["gaming", "graphics", "unrealengine"],
-    "author_id": "creator_99",
-    "upload_date": "2026-01-31T16:00:00Z",
-    "watch_ratio_avg": 1.45,
-    "total_views": 275000
-  },
-  {
-    "item_id": "v_120",
-    "title": "Traditional Dumpling Folding Secrets",
-    "category": "Food",
-    "duration_seconds": 52,
-    "tags": ["food", "dumplings", "recipe", "asianfood"],
-    "author_id": "creator_12",
-    "upload_date": "2026-02-01T10:00:00Z",
-    "watch_ratio_avg": 1.40,
-    "total_views": 205000
-  }
+ {
+  "item_id": "1",
+  "title": "Synthetic video 1",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 50
+ },
+ {
+  "item_id": "2",
+  "title": "Synthetic video 2",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 40
+ },
+ {
+  "item_id": "3",
+  "title": "Synthetic video 3",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 30
+ },
+ {
+  "item_id": "4",
+  "title": "Synthetic video 4",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 20
+ },
+ {
+  "item_id": "5",
+  "title": "Synthetic video 5",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 10
+ },
+ {
+  "item_id": "6",
+  "title": "Synthetic video 6",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 5
+ },
+ {
+  "item_id": "7",
+  "title": "Synthetic video 7",
+  "has_caption": true,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 2
+ },
+ {
+  "item_id": "8",
+  "title": "",
+  "has_caption": false,
+  "category": "Test",
+  "categories": [
+   "Test"
+  ],
+  "tags": [],
+  "author_id": "a1",
+  "upload_date": "2020-01-01",
+  "video_type": "NORMAL",
+  "duration_seconds": 10.0,
+  "positive_training_events": 1
+ }
 ]

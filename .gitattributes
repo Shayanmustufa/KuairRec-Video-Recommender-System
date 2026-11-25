@@ -1,0 +1,7 @@
+*.pdf binary
+*.gz binary
+*.png binary
+*.pptx binary
+*.go text eol=lf
+*.sh text eol=lf
+backend-frontend/backend/serving_data/** -text

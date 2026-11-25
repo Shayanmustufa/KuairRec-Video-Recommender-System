@@ -1,3 +1,4 @@
+// Package config reads runtime settings from environment variables.
 package config
 
 import (
@@ -6,48 +7,45 @@ import (
 	"strings"
 )
 
+// Config holds runtime settings.
 type Config struct {
-	Port           string
-	DataDir        string
-	DatabaseURL    string
-	AllowedOrigins []string
-	DefaultTopK    int
+	Port               string
+	DataDir            string
+	DatabaseURL        string
+	AllowedOrigins     []string
+	RateLimitPerMinute int
+	AdminToken         string
+	LogRequestsToDB    bool
 }
 
-func Load() *Config {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
+// Load reads the environment, applying documented defaults.
+func Load() Config {
+	cfg := Config{
+		Port:               getenv("PORT", "8080"),
+		DataDir:            getenv("DATA_DIR", "./serving_data"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		AllowedOrigins:     []string{"http://localhost:3000", "http://127.0.0.1:3000"},
+		RateLimitPerMinute: 300,
+		AdminToken:         os.Getenv("ADMIN_TOKEN"),
+		LogRequestsToDB:    getenv("LOG_REQUESTS_TO_DB", "true") != "false",
 	}
-
-	dataDir := os.Getenv("DATA_DIR")
-	if dataDir == "" {
-		dataDir = "./serving_data"
-	}
-
-	databaseURL := os.Getenv("DATABASE_URL")
-
-	allowedOrigins := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
 	if value := strings.TrimSpace(os.Getenv("ALLOWED_ORIGINS")); value != "" {
-		allowedOrigins = nil
+		cfg.AllowedOrigins = nil
 		for _, origin := range strings.Split(value, ",") {
-			if origin = strings.TrimSpace(origin); origin != "" { allowedOrigins = append(allowedOrigins, origin) }
+			if origin = strings.TrimSpace(origin); origin != "" {
+				cfg.AllowedOrigins = append(cfg.AllowedOrigins, origin)
+			}
 		}
 	}
-
-	topKStr := os.Getenv("DEFAULT_TOP_K")
-	topK := 10
-	if topKStr != "" {
-		if val, err := strconv.Atoi(topKStr); err == nil && val > 0 {
-			topK = val
-		}
+	if value, err := strconv.Atoi(os.Getenv("RATE_LIMIT_PER_MINUTE")); err == nil && value > 0 {
+		cfg.RateLimitPerMinute = value
 	}
+	return cfg
+}
 
-	return &Config{
-		Port:           port,
-		DataDir:        dataDir,
-		DatabaseURL:    databaseURL,
-		AllowedOrigins: allowedOrigins,
-		DefaultTopK:    topK,
+func getenv(key, fallback string) string {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		return value
 	}
+	return fallback
 }

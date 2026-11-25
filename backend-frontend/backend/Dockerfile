@@ -1,30 +1,21 @@
-# Build stage
-FROM golang:1.22-alpine AS builder
-
-WORKDIR /app
-
-RUN apk add --no-cache git gcc musl-dev
-
-COPY go.mod ./
-RUN go mod download
-
+# syntax=docker/dockerfile:1
+# Versions are pinned so the image can be rebuilt identically (WBS Day 15).
+FROM golang:1.22.12-alpine3.21 AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/api ./cmd/api
 
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/api ./cmd/api
-
-# Final runtime stage
-FROM alpine:3.19
-
+FROM alpine:3.21.3
+RUN apk add --no-cache ca-certificates tzdata wget \
+    && addgroup -S app && adduser -S -G app app
 WORKDIR /app
-
-RUN apk --no-cache add ca-certificates tzdata
-
-COPY --from=builder /app/api /app/api
-COPY --from=builder /app/serving_data /app/serving_data
-
-ENV PORT=8080
-ENV DATA_DIR=/app/serving_data
-
+COPY --from=builder /out/api /app/api
+COPY serving_data /app/serving_data
+USER app
+ENV PORT=8080 DATA_DIR=/app/serving_data
 EXPOSE 8080
-
-CMD ["/app/api"]
+HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=5 \
+  CMD wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1
+ENTRYPOINT ["/app/api"]

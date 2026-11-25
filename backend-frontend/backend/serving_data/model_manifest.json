@@ -1,22 +1,32 @@
 {
-  "manifest_version": "1.0",
-  "generated_at": "2026-11-24T09:42:18.341613+00:00",
+  "manifest_version": "2.0",
+  "generated_at": "2026-11-25T07:17:07+00:00",
+  "source_model_manifest_generated_at": "2026-11-24T09:42:18.341613+00:00",
   "dataset_release": {
     "name": "KuaiRec 2.0",
     "paper": "KuaiRec: A Fully-observed Dataset and Insights for Evaluating Recommender Systems",
     "official_url": "https://zenodo.org/records/18164998",
     "source_repo": "https://github.com/chongminggao/KuaiRec",
     "protocol": "per-user chronological train/validation/test",
-    "target_definition": "watch_ratio > 2; derived positive proxy, not an official like label"
+    "target_definition": "watch_ratio > 2; derived positive proxy, not an official like label",
+    "eligible_users": 7176,
+    "eligible_items": 8418
   },
   "current_model": "hybrid-validation-selected-v1",
+  "fallback_model": "popularity-positive-event-count-v1",
+  "selected_weights": {
+    "popularity": 0.1,
+    "item_cf": 0.9,
+    "lightgcn": 0.0
+  },
   "models": [
     {
       "id": "popularity-positive-event-count-v1",
       "name": "Popularity baseline",
       "type": "baseline",
-      "description": "Positive training-event count; cold-start fallback.",
+      "description": "Count of training events with watch_ratio > 2.0; also the cold-start fallback.",
       "is_fallback": true,
+      "status": "baseline",
       "metrics": {
         "recall_at_10": 0.015693085833087983,
         "recall_at_20": 0.02404232121763642,
@@ -33,8 +43,9 @@
       "id": "item-cf-cosine-v1",
       "name": "Item-CF",
       "type": "collaborative",
-      "description": "Validation-tuned cosine Item-CF.",
+      "description": "Validation-tuned cosine item-item collaborative filtering.",
       "is_fallback": false,
+      "status": "baseline",
       "metrics": {
         "recall_at_10": 0.01222774262368133,
         "recall_at_20": 0.020437998929475253,
@@ -51,8 +62,9 @@
       "id": "lightgcn-validation-selected-v1",
       "name": "LightGCN (rejected experiment)",
       "type": "experimental",
-      "description": "Evaluated on validation and assigned zero final weight.",
+      "description": "Evaluated on validation; underperformed both baselines and received zero hybrid weight.",
       "is_fallback": false,
+      "status": "rejected",
       "metrics": {
         "recall_at_10": 0.008589489845232043,
         "recall_at_20": 0.015792837840573073,
@@ -69,8 +81,9 @@
       "id": "hybrid-validation-selected-v1",
       "name": "Selected hybrid",
       "type": "hybrid",
-      "description": "Frozen 0.1 popularity + 0.9 Item-CF + 0.0 LightGCN.",
+      "description": "Frozen 0.9 Item-CF + 0.0 LightGCN + 0.1 popularity (validation-selected).",
       "is_fallback": false,
+      "status": "selected",
       "weights": {
         "alpha_cf": 0.9,
         "beta_extension": 0.0,
@@ -89,18 +102,98 @@
       }
     }
   ],
+  "serving": {
+    "recommendations": {
+      "model_id": "hybrid-validation-selected-v1",
+      "split": "test",
+      "history": "train + validation (user_history_test.csv)",
+      "candidates": "full eligible catalog minus training and validation seen items",
+      "list_length": 20
+    },
+    "comparisons": {
+      "split": "validation",
+      "history": "train only",
+      "candidates": "full eligible catalog minus training-seen items",
+      "users": 100,
+      "list_length": 20,
+      "item_cf_zero_signal_rows_dropped": 324
+    }
+  },
   "reason_code_rules": [
     {
       "code": "liked_by_similar_users",
-      "description": "Item-CF contribution backed by positive history."
+      "enabled": true,
+      "description": "Emit when the recommended item has a positive selected Item-CF neighbor contribution from the user's positive training history.",
+      "required_evidence": [
+        "source_video_id",
+        "similarity",
+        "preference_strength",
+        "contribution",
+        "item_cf_weight"
+      ]
     },
     {
       "code": "popular_in_training",
-      "description": "Positive training-event count."
+      "enabled": true,
+      "description": "Emit when the item has at least one positive training event and the selected popularity weight is positive.",
+      "required_evidence": [
+        "positive_training_event_count",
+        "popularity_weight"
+      ]
+    },
+    {
+      "code": "extension_model_match",
+      "enabled": false,
+      "description": "Disabled because validation selected a zero LightGCN weight.",
+      "required_evidence": [
+        "lightgcn_score",
+        "lightgcn_weight"
+      ]
+    },
+    {
+      "code": "similar_to_recent",
+      "enabled": false,
+      "description": "Not emitted offline because the strongest Item-CF contributor is not necessarily the most recent history item.",
+      "required_evidence": [
+        "source_video_id",
+        "source_timestamp",
+        "similarity"
+      ]
     },
     {
       "code": "cold_start",
-      "description": "Popularity fallback for unknown/no-positive-history users."
+      "enabled": true,
+      "description": "Use the frozen popularity ranking when a user is unknown or has no eligible positive training history.",
+      "required_evidence": [
+        "fallback_model_id",
+        "positive_training_event_count"
+      ]
     }
-  ]
+  ],
+  "source_artifacts_sha256": {
+    "test_time_manifest.json": "6327f89ae93cb174229dbbc9afc0bbc46e19dcaa45c9628b8f88aa0e72f83e53",
+    "controlled_test_predictions.csv": "26dfe006007256abf7b96cdec477d7a300e367220bcb1a40d9bb49d69159308a",
+    "controlled_test_metrics.json": "321e5bdb1b460dd2146deb885ef07827e38758997f6bcb75b7da5bb3dfa58a9b",
+    "reason_codes.json": "cfad2f1746e7383bdd569c26f82f6f0ba7324a7ffc95fa62ef954b2ece3309d6",
+    "popularity_model.json": "e5863f32fd28d1f5cff9e15df3f9c685c8391f51b6f61dfdf89be47a7ec8ccef",
+    "popularity_manifest.json": "a0e9c266a506bd93fa1e543c07f1d468daa5473529e21ae9119dddbad2376a55",
+    "item_cf_model.npz": "bdca9a94b85d0d2471e2725dc78cfd397461eaca28140d1025edc376a9413d22",
+    "item_cf_mapping.json": "9e2867ca935e2da64edc27bff9b1fce6c31cc250896612d43e5eef76c0168ec8",
+    "item_cf_manifest.json": "20fbadf34d53b82f28cb39173b3838153e2e72302f6a313bb4dd79fc2b84c7c9",
+    "lightgcn_embeddings.npz": "ca86b5d8817346550c05840d3fa1cd8c81f9a56a8c0d5a4f023e694fe162f209",
+    "lightgcn_mapping.json": "395ce9c27b43f19ed839fd03a8730883a8bc17845563bc18936db069c8d84e31",
+    "lightgcn_manifest.json": "6addb482e6cf05dd6ee02fc4dcd06758a3062dcacd03543b1f6a0492525f805c",
+    "hybrid_config.json": "00c7ac203b01ac179d813c6cbd9b317fe2d12d07288c3b724473487c075fb054",
+    "hybrid_manifest.json": "256b9685b6dbda10e12fcc15fab4e9694187325be7fb529277df340662f2c607",
+    "explanation_evidence.jsonl": "356ec2f1586ce0dd3dd746fcaea99f0a36bddb61126bbd853ef2b5780b817472",
+    "explanation_validation.json": "6f88b51dd1b5e9432cbf28e4129254da5f3cf0e518c6fc35d180961651105c9d"
+  },
+  "bundle_sha256": {
+    "catalog.json": "3383530caf13ee95a09b5ddf313142abfdecd320418bb0728bc367cce4632cf1",
+    "recommendations.json.gz": "cc73a7825d28743a0154c699ecced71cf9dd8fbbb55f511ea4b591cba97d2834",
+    "comparisons.json": "570d2089e0839ff5f19ccd179d525b4cdad0133ae3fad9ccc728bdf306a68d3a",
+    "popularity.json": "f5ce9d0dcb559a5c7c17d7c9fd622782b92c1203ad5507c45eb1bf20eb44cd12",
+    "user_profiles.json": "0358d40f7290d3b7bc31d6a8c055980cbbbbbdd12f7dbfda8fc9cc47632d4cdc",
+    "item_similarity.json": "c43e0a8abd03b8622ae5e8b79d5cd95995161afbbc06a2c28fdf0bd294d0b299"
+  }
 }
