@@ -1,263 +1,262 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { 
-  fetchRecommendations, 
-  fetchDemoUsers, 
-  fetchModelManifest, 
-  switchActiveModel 
-} from '@/lib/api';
-import { RecommendationResponse, DemoUser, ModelManifest } from '@/types';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchDemoUsers, fetchModelManifest, fetchRecommendations, fetchUser } from '@/lib/api';
+import type { DemoUser, ModelManifest, RecommendationResponse, UserDetail } from '@/types';
+import { MODEL_LABELS, SortKey, describeUserState, sortItems } from '@/lib/format';
 import { VideoCard } from '@/components/VideoCard';
 import { SkeletonCard } from '@/components/SkeletonLoader';
+import { HybridPanel } from '@/components/HybridPanel';
+import { UserHistoryPanel } from '@/components/UserHistoryPanel';
+import { EmptyState, ErrorState, StateBanner } from '@/components/States';
+
+const SELECTED = 'hybrid-validation-selected-v1';
+const TOP_K_OPTIONS = [5, 10, 15, 20];
+
+function statusLabel(user: DemoUser): string {
+  return user.status === 'no_positive_history'
+    ? 'no positive history'
+    : `${user.positive_history_items.toLocaleString('en-US')} positive events`;
+}
+
+const control =
+  'rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100';
 
 export default function HomePage() {
   const [users, setUsers] = useState<DemoUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>('');
-  const [topK, setTopK] = useState<number>(10);
-  const [excludeSeen, setExcludeSeen] = useState<boolean>(true);
-  const [isColdStartSimulated, setIsColdStartSimulated] = useState<boolean>(false);
-  
   const [manifest, setManifest] = useState<ModelManifest | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('hybrid-validation-selected-v1');
+  const [userId, setUserId] = useState('');
+  const [customId, setCustomId] = useState('');
+  const [model, setModel] = useState(SELECTED);
+  const [topK, setTopK] = useState(10);
+  const [excludeSeen, setExcludeSeen] = useState(true);
+  const [coldStart, setColdStart] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('rank');
+  const [refreshToken, setRefreshToken] = useState(0);
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [recData, setRecData] = useState<RecommendationResponse | null>(null);
+  const [initError, setInitError] = useState<unknown>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [data, setData] = useState<RecommendationResponse | null>(null);
+  const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
 
-  // Load demo users and model manifest
-  useEffect(() => {
-    async function init() {
-      try {
-        const [uList, mData] = await Promise.all([
-          fetchDemoUsers(),
-          fetchModelManifest().catch(() => null),
-        ]);
-        setUsers(uList);
-        const defaultUser = uList.find((user) => user.interaction_count > 0) || uList[0];
-        if (defaultUser) setSelectedUser(defaultUser.user_id);
-        if (mData) {
-          setManifest(mData);
-          setSelectedModel(mData.current_model || 'hybrid-validation-selected-v1');
-        }
-      } catch (err) {
-        console.error('Initialization error:', err);
-      }
+  const init = useCallback(async () => {
+    setInitError(null);
+    try {
+      const [list, m] = await Promise.all([fetchDemoUsers(), fetchModelManifest()]);
+      setUsers(list);
+      setManifest(m);
+      setUserId((current) => current || list.find((u) => u.status === 'known')?.user_id || list[0]?.user_id || '');
+    } catch (err) {
+      setInitError(err);
+      setLoading(false);
     }
-    init();
   }, []);
 
-  // Fetch recommendations whenever controls change
   useEffect(() => {
-    async function loadRecs() {
-      setLoading(true);
-      setError(null);
+    init();
+  }, [init]);
 
-      const targetUserId = isColdStartSimulated ? 'user_cold_start' : selectedUser;
-      if (!targetUserId) return;
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchRecommendations({ user_id: userId, top_k: topK, exclude_seen: excludeSeen, model, force_cold_start: coldStart })
+      .then((resp) => !cancelled && setData(resp))
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err);
+          setData(null);
+        }
+      })
+      .finally(() => !cancelled && setLoading(false));
+    fetchUser(userId)
+      .then((detail) => !cancelled && setUserDetail(detail))
+      .catch(() => !cancelled && setUserDetail(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, topK, excludeSeen, model, coldStart, refreshToken]);
 
-      try {
-        const resp = await fetchRecommendations(targetUserId, topK, excludeSeen);
-        setRecData(resp);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load recommendations');
-        setRecData(null);
-      } finally {
-        setLoading(false);
-      }
-    }
+  const items = useMemo(() => sortItems(data?.recommendations ?? [], sortKey), [data, sortKey]);
+  const isCustom = userId !== '' && !users.some((u) => u.user_id === userId);
 
-    loadRecs();
-  }, [selectedUser, topK, excludeSeen, isColdStartSimulated, selectedModel]);
+  function submitCustom(event: React.FormEvent) {
+    event.preventDefault();
+    const id = customId.trim();
+    if (id) setUserId(id);
+  }
 
-  // Handle model switch
-  const handleModelChange = async (newModel: string) => {
-    try {
-      await switchActiveModel(newModel);
-      setSelectedModel(newModel);
-    } catch (err: any) {
-      console.error('Failed to switch model:', err);
-      setError(err.message || 'Failed to switch model');
-    }
-  };
+  if (initError) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-2xl font-extrabold">Recommendations</h1>
+        <ErrorState error={initError} onRetry={init} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* Top Banner / Hero */}
-      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 dark:from-slate-900 dark:via-indigo-950/80 dark:to-slate-950 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-transparent dark:border-slate-800">
-        <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 text-xs font-medium mb-3">
-            <span>⚡ Go Chi / Fast API Backend</span>
-            <span>•</span>
-            <span>Next.js App Router</span>
-            <span>•</span>
-            <span>Evidence-Based Reason Codes</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Personalized Short-Video Recommendation Feed
-          </h1>
-          <p className="mt-2 text-slate-300 text-sm sm:text-base leading-relaxed">
-            Live evaluation sandbox displaying real-time ranking scores, collaborative filtering signals,
-            LightGCN graph embeddings, and verifiable reason codes from the KuaiRec benchmark.
-          </p>
-        </div>
-      </div>
+      <header>
+        <h1 className="text-2xl font-extrabold tracking-tight">Explainable short-video recommendations</h1>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+          Frozen KuaiRec 2.0 rankings served by the Go API. Every result shows its rank, official catalog metadata, score and the
+          machine-readable evidence behind its explanation. The selected model is the validation-tuned hybrid (0.9 Item-CF, 0.1 popularity,
+          0 LightGCN).
+        </p>
+      </header>
 
-      {/* Control Panel / Toolbar */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm space-y-4 transition-colors">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-              Select User Profile:
+      <section
+        aria-label="Recommendation controls"
+        className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      >
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="user-select" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Demo user
             </label>
             <select
-              value={isColdStartSimulated ? 'user_cold_start' : selectedUser}
-              onChange={(e) => {
-                if (e.target.value === 'user_cold_start') {
-                  setIsColdStartSimulated(true);
-                } else {
-                  setIsColdStartSimulated(false);
-                  setSelectedUser(e.target.value);
-                }
-              }}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              id="user-select"
+              className={control}
+              value={isCustom ? '' : userId}
+              onChange={(e) => e.target.value && setUserId(e.target.value)}
             >
+              {isCustom && <option value="">Custom ID: {userId}</option>}
               {users.map((u) => (
                 <option key={u.user_id} value={u.user_id}>
-                  {u.user_id} ({u.is_cold_start ? 'Cold Start / New User' : u.history_available === false ? 'known evaluation user' : `${u.interaction_count} past events`})
+                  {u.user_id} ({statusLabel(u)})
                 </option>
               ))}
-              <option value="user_cold_start">user_cold_start (Cold-start fallback)</option>
-              <option value="custom_unseen_user">custom_unseen_user (Unknown User Test)</option>
             </select>
           </div>
-
-          <div className="flex items-center gap-4">
-            {/* Cold Start Simulator Toggle */}
-            <label className="inline-flex items-center gap-2 cursor-pointer">
+          <form onSubmit={submitCustom} className="flex items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <label htmlFor="custom-user" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                Or enter any user ID
+              </label>
               <input
-                type="checkbox"
-                checked={isColdStartSimulated}
-                onChange={(e) => setIsColdStartSimulated(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 dark:border-slate-700 focus:ring-indigo-500"
+                id="custom-user"
+                className={`${control} w-40`}
+                value={customId}
+                onChange={(e) => setCustomId(e.target.value)}
+                placeholder="e.g. 0 or new-user"
               />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Force Cold-Start Fallback</span>
+            </div>
+            <button
+              type="submit"
+              className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-indigo-600"
+            >
+              Load
+            </button>
+          </form>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="model-select" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Model (this request only)
             </label>
-
-            {/* Exclude Seen Toggle */}
-            <label className="inline-flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={excludeSeen}
-                onChange={(e) => setExcludeSeen(e.target.checked)}
-                className="w-4 h-4 text-indigo-600 rounded border-slate-300 dark:border-slate-700 focus:ring-indigo-500"
-              />
-              <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Exclude Already Seen</span>
-            </label>
+            <select id="model-select" className={control} value={model} onChange={(e) => setModel(e.target.value)}>
+              {(manifest?.models ?? []).map((m) => (
+                <option key={m.id} value={m.id}>
+                  {MODEL_LABELS[m.id] ?? m.name}
+                </option>
+              ))}
+            </select>
           </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="topk-select" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Top-K
+            </label>
+            <select id="topk-select" className={control} value={topK} onChange={(e) => setTopK(Number(e.target.value))}>
+              {TOP_K_OPTIONS.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="sort-select" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+              Sort shown results
+            </label>
+            <select id="sort-select" className={control} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+              <option value="rank">Model rank</option>
+              <option value="score">Score (high → low)</option>
+              <option value="popularity">Positive training events</option>
+              <option value="category">Category (A → Z)</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRefreshToken((n) => n + 1)}
+            className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+          >
+            Refresh
+          </button>
         </div>
+        <div className="flex flex-wrap gap-6">
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={coldStart} onChange={(e) => setColdStart(e.target.checked)} className="h-4 w-4" />
+            Cold-start view (popularity fallback)
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={excludeSeen} onChange={(e) => setExcludeSeen(e.target.checked)} className="h-4 w-4" />
+            Exclude already-seen videos
+          </label>
+        </div>
+        {model !== SELECTED && (
+          <p className="text-xs text-slate-600 dark:text-slate-400">
+            Non-selected models serve their saved validation-time lists, which are exported for the demo users only.
+          </p>
+        )}
+      </section>
 
-        {/* Second Row: Model & Top-K Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Active Model:</span>
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 p-1">
-              {[
-                { id: 'popularity-positive-event-count-v1', label: 'Popularity' },
-                { id: 'item-cf-cosine-v1', label: 'Item-CF' },
-                { id: 'lightgcn-validation-selected-v1', label: 'LightGCN (rejected)' },
-                { id: 'hybrid-validation-selected-v1', label: 'Hybrid (selected)' },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => handleModelChange(m.id)}
-                  className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
-                    selectedModel === m.id
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-                  }`}
-                >
-                  {m.label}
-                </button>
+      {data && !loading && <StateBanner message={describeUserState(data)} />}
+
+      {data && !loading && (
+        <p className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-slate-600 dark:text-slate-400" aria-live="polite">
+          <span>
+            model: <strong className="text-slate-900 dark:text-slate-100">{data.model}</strong>
+          </span>
+          <span>split: {data.artifact_split}</span>
+          <span>fallback: {data.fallback ? 'yes' : 'no'}</span>
+          <span>results: {data.top_k}</span>
+          <span>engine latency: {data.latency_ms.toFixed(3)} ms</span>
+          <span>generated: {new Date(data.generated_at).toLocaleTimeString()}</span>
+        </p>
+      )}
+
+      {error ? <ErrorState error={error} onRetry={() => setRefreshToken((n) => n + 1)} /> : null}
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div>
+          {loading ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3" aria-busy="true" aria-label="Loading recommendations">
+              {Array.from({ length: Math.min(topK, 6) }).map((_, idx) => (
+                <SkeletonCard key={idx} />
               ))}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Top-K:</span>
-            {[5, 10, 15, 20].map((k) => (
-              <button
-                key={k}
-                onClick={() => setTopK(k)}
-                className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
-                  topK === k
-                    ? 'bg-slate-900 dark:bg-indigo-600 text-white'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                }`}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
+          ) : items.length > 0 ? (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+              {items.map((item) => (
+                <VideoCard key={item.item_id} item={item} userId={data!.user_id} modelId={data!.model} />
+              ))}
+            </div>
+          ) : (
+            !error && <EmptyState>No recommendations match these filters for this user.</EmptyState>
+          )}
         </div>
+        <aside className="space-y-6">
+          {data && !data.fallback && data.recommendations.some((i) => i.components) && (
+            <HybridPanel manifest={manifest} items={data.recommendations} />
+          )}
+          {userDetail ? (
+            <UserHistoryPanel user={userDetail} />
+          ) : (
+            data?.user_status === 'unknown' && <EmptyState>No history: user {data.user_id} is not in the training data.</EmptyState>
+          )}
+        </aside>
       </div>
-
-      {/* Status Bar */}
-      {recData && (
-        <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-slate-500 dark:text-slate-400 font-mono">
-          <div className="flex items-center gap-3">
-            <span>
-              Serving Model: <strong className="text-slate-800 dark:text-slate-200">{recData.model}</strong>
-            </span>
-            <span>•</span>
-            <span>
-              Fallback Triggered: <strong className={recData.fallback ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
-                {recData.fallback ? 'YES (Cold Start Baseline)' : 'NO (Personalized)'}
-              </strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            {recData.latency_ms !== undefined && (
-              <span>Engine Latency: <strong className="text-slate-800 dark:text-slate-200">{recData.latency_ms.toFixed(2)} ms</strong></span>
-            )}
-            <span>Generated: {new Date(recData.generated_at).toLocaleTimeString()}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Main Recommendations Grid */}
-      {error && (
-        <div className="p-6 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-800 dark:text-rose-200 text-sm">
-          <p className="font-bold">Error loading recommendations</p>
-          <p className="mt-1">{error}</p>
-          <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">Ensure the API backend is running on port 8080.</p>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {Array.from({ length: topK }).map((_, idx) => (
-            <SkeletonCard key={idx} />
-          ))}
-        </div>
-      ) : recData && recData.recommendations.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {recData.recommendations.map((item) => (
-            <VideoCard
-              key={item.item_id}
-              item={item}
-              userId={recData.user_id}
-              modelId={recData.model}
-            />
-          ))}
-        </div>
-      ) : (
-        !error && (
-          <div className="text-center py-16 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
-            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">No candidates available for this filter combination.</p>
-          </div>
-        )
-      )}
     </div>
   );
 }

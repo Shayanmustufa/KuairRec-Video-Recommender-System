@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { RecommendedItem } from '@/types';
+import type { FeedbackAction, RecommendedItem } from '@/types';
 import { ReasonBadge } from './ReasonBadge';
-import { postFeedback } from '@/lib/api';
+import { ScoreBreakdown } from './ScoreBreakdown';
+import { describeError, postFeedback } from '@/lib/api';
+import { formatDuration, videoTitle } from '@/lib/format';
 
 interface Props {
   item: RecommendedItem;
@@ -12,121 +14,101 @@ interface Props {
   modelId: string;
 }
 
-export const VideoCard: React.FC<Props> = ({ item, userId, modelId }) => {
-  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+const ACTIONS: { action: FeedbackAction; label: string }[] = [
+  { action: 'play', label: 'Play' },
+  { action: 'click', label: 'Click' },
+  { action: 'skip', label: 'Skip' },
+  { action: 'hide', label: 'Hide' },
+];
 
+/** Recommendation card: rank, official metadata, score, explanation and feedback (WBS §8). */
+export function VideoCard({ item, userId, modelId }: Props) {
+  const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   const video = item.video;
-  const title = video ? video.title : `KuaiRec Video #${item.item_id}`;
-  const category = video ? video.category : 'General';
-  const duration = video ? `${video.duration_seconds}s` : '30s';
-  const views = video ? video.total_views.toLocaleString() : 'N/A';
+  const title = videoTitle(item);
 
-  const handleAction = async (action: 'click' | 'play' | 'skip' | 'hide') => {
+  async function send(action: FeedbackAction) {
+    setBusy(true);
     try {
-      setIsSubmitting(true);
-      await postFeedback(userId, item.item_id, action, modelId);
-      setFeedbackStatus(action);
-      setTimeout(() => setFeedbackStatus(null), 3000);
+      await postFeedback(userId, item.item_id, action, modelId, item.rank);
+      setStatus({ ok: true, text: `Recorded “${action}”` });
     } catch (err) {
-      console.error('Feedback error:', err);
+      setStatus({ ok: false, text: describeError(err).title });
     } finally {
-      setIsSubmitting(false);
+      setBusy(false);
     }
-  };
+  }
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between">
+    <article
+      aria-labelledby={`title-${item.item_id}`}
+      className="flex flex-col justify-between overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      data-testid="recommendation-card"
+    >
       <div>
-        {/* Placeholder Video Thumbnail with Category Banner */}
-        <div className="relative h-36 bg-gradient-to-br from-slate-800 to-slate-950 flex flex-col items-center justify-center p-4 text-white">
-          <div className="absolute top-2 left-2 bg-indigo-600 text-white font-black text-xs px-2.5 py-1 rounded shadow">
-            Rank #{item.rank}
-          </div>
-          <div className="absolute top-2 right-2 bg-black/60 text-slate-200 font-mono text-[11px] px-2 py-0.5 rounded">
-            Score: {item.score.toFixed(3)}
-          </div>
-          
-          <div className="text-center">
-            <span className="text-xs uppercase tracking-widest text-indigo-300 font-semibold">{category}</span>
-            <p className="font-bold text-sm mt-1 line-clamp-2 px-2 text-slate-100">{title}</p>
-          </div>
-
-          <div className="absolute bottom-2 left-2 right-2 flex justify-between text-[11px] text-slate-400">
-            <span>⏱ {duration}</span>
-            <span>👁 {views} views</span>
-          </div>
+        {/* Neutral placeholder: the release has no thumbnails, so none are invented (WBS §8). */}
+        <div className="relative flex h-32 flex-col items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 p-4 text-center text-white">
+          <span className="absolute left-2 top-2 rounded bg-indigo-600 px-2 py-0.5 text-xs font-bold">Rank #{item.rank}</span>
+          <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 font-mono text-[11px]">
+            score {item.score.toFixed(3)}
+          </span>
+          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-200">{video?.category || 'Uncategorised'}</span>
+          <p id={`title-${item.item_id}`} className="mt-1 line-clamp-2 px-2 text-sm font-bold">
+            {title}
+          </p>
         </div>
-
-        {/* Card Body */}
-        <div className="p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-            <span className="font-mono text-slate-700 dark:text-slate-300">ID: {item.item_id}</span>
-            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded font-medium">Source: {item.source}</span>
-          </div>
-
-          {/* Explanation Reason Badges */}
+        <div className="flex flex-col gap-3 p-4">
+          <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-slate-600 dark:text-slate-300">
+            <dt>Video ID</dt>
+            <dd className="font-mono text-slate-900 dark:text-slate-100">{item.item_id}</dd>
+            <dt>Duration</dt>
+            <dd>{formatDuration(video?.duration_seconds)}</dd>
+            <dt>Positive training events</dt>
+            <dd>{video ? video.positive_training_events.toLocaleString('en-US') : '—'}</dd>
+            <dt>Source</dt>
+            <dd className="break-all font-mono">{item.source}</dd>
+          </dl>
+          {item.components && <ScoreBreakdown components={item.components} total={item.score} />}
           <div className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Why recommended:</span>
-            {item.reasons.map((r, idx) => (
-              <ReasonBadge key={idx} reason={r} />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Why recommended</h3>
+            {item.reasons.map((reason, idx) => (
+              <ReasonBadge key={`${reason.code}-${idx}`} reason={reason} />
             ))}
           </div>
         </div>
       </div>
-
-      {/* Card Footer: Details Link & Feedback Buttons */}
-      <div className="p-4 pt-0 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-        <div className="flex items-center justify-between pt-3">
-          <Link 
-            href={`/videos/${item.item_id}`} 
-            className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline"
+      <div className="flex flex-col gap-2 border-t border-slate-100 p-4 dark:border-slate-800">
+        <div className="flex items-center justify-between">
+          <Link
+            href={`/videos/${encodeURIComponent(item.item_id)}`}
+            className="text-xs font-semibold text-indigo-700 hover:underline dark:text-indigo-300"
           >
-            Inspect Video Details →
+            Video details →
           </Link>
-          {feedbackStatus && (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded animate-pulse">
-              ✓ Logged: {feedbackStatus}
-            </span>
-          )}
+          <span
+            role="status"
+            aria-live="polite"
+            className={`text-xs font-semibold ${status?.ok === false ? 'text-rose-600' : 'text-emerald-600 dark:text-emerald-400'}`}
+          >
+            {status?.text}
+          </span>
         </div>
-
-        {/* Feedback Action Buttons */}
-        <div className="grid grid-cols-4 gap-1.5 mt-1">
-          <button
-            onClick={() => handleAction('play')}
-            disabled={isSubmitting}
-            className="text-[11px] font-medium py-1.5 px-1 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded transition text-center"
-            title="Mark as played"
-          >
-            ▶ Play
-          </button>
-          <button
-            onClick={() => handleAction('click')}
-            disabled={isSubmitting}
-            className="text-[11px] font-medium py-1.5 px-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded transition text-center"
-            title="Mark as clicked"
-          >
-            👆 Click
-          </button>
-          <button
-            onClick={() => handleAction('skip')}
-            disabled={isSubmitting}
-            className="text-[11px] font-medium py-1.5 px-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded transition text-center"
-            title="Skip item"
-          >
-            ⏭ Skip
-          </button>
-          <button
-            onClick={() => handleAction('hide')}
-            disabled={isSubmitting}
-            className="text-[11px] font-medium py-1.5 px-1 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900 text-rose-700 dark:text-rose-300 rounded transition text-center"
-            title="Hide recommendation"
-          >
-            ✕ Hide
-          </button>
+        <div className="grid grid-cols-4 gap-1.5" role="group" aria-label={`Feedback for video ${item.item_id}`}>
+          {ACTIONS.map(({ action, label }) => (
+            <button
+              key={action}
+              type="button"
+              onClick={() => send(action)}
+              disabled={busy}
+              aria-label={`${label} video ${item.item_id}`}
+              className="rounded bg-slate-100 px-1 py-1.5 text-[11px] font-medium text-slate-800 hover:bg-slate-200 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
+    </article>
   );
-};
+}

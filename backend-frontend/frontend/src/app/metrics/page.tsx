@@ -1,177 +1,175 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { fetchOfflineMetrics } from '@/lib/api';
+import type { ModelMetrics, OfflineMetrics } from '@/types';
+import { ErrorState, Loading } from '@/components/States';
+import { MODEL_LABELS } from '@/lib/format';
+
+const COLUMNS: { key: keyof ModelMetrics; label: string; primary?: boolean }[] = [
+  { key: 'recall_at_10', label: 'Recall@10', primary: true },
+  { key: 'ndcg_at_10', label: 'NDCG@10', primary: true },
+  { key: 'hit_rate_at_10', label: 'Hit Rate@10', primary: true },
+  { key: 'precision_at_10', label: 'Precision@10', primary: true },
+  { key: 'recall_at_20', label: 'Recall@20' },
+  { key: 'ndcg_at_20', label: 'NDCG@20' },
+  { key: 'catalog_coverage', label: 'Catalog coverage@20' },
+];
+
+function Bars({ data }: { data: OfflineMetrics }) {
+  const max = Math.max(...data.validation_metrics.map((m) => m.metrics.ndcg_at_10));
+  return (
+    <figure className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <figcaption className="text-base font-bold">Validation NDCG@10 by model</figcaption>
+      <ul className="mt-4 space-y-3">
+        {data.validation_metrics.map((m) => (
+          <li key={m.id} className="text-xs">
+            <div className="flex justify-between">
+              <span>{MODEL_LABELS[m.id] ?? m.name}</span>
+              <span className="font-mono">{m.metrics.ndcg_at_10.toFixed(4)}</span>
+            </div>
+            <div className="mt-1 h-3 rounded bg-slate-100 dark:bg-slate-800" aria-hidden="true">
+              <div
+                className={`h-3 rounded ${m.status === 'selected' ? 'bg-indigo-600' : m.status === 'rejected' ? 'bg-rose-400' : 'bg-slate-500'}`}
+                style={{ width: `${(m.metrics.ndcg_at_10 / max) * 100}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
 
 export default function MetricsPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadMetrics() {
-      try {
-        setLoading(true);
-        const res = await fetchOfflineMetrics();
-        setData(res);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch metrics summary');
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadMetrics();
+  const [data, setData] = useState<OfflineMetrics | null>(null);
+  const [error, setError] = useState<unknown>(null);
+  const load = useCallback(() => {
+    setError(null);
+    fetchOfflineMetrics().then(setData).catch(setError);
   }, []);
+  useEffect(load, [load]);
 
-  if (loading) {
-    return (
-      <div className="py-16 text-center text-slate-500 dark:text-slate-400 font-mono animate-pulse">
-        Loading evaluation protocol and scientific benchmark metrics...
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="p-6 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-xl text-rose-800 dark:text-rose-200 text-sm">
-        {error || 'Metrics not available'}
-      </div>
-    );
-  }
+  if (error) return <ErrorState error={error} onRetry={load} />;
+  if (!data) return <Loading label="Loading evaluation metrics…" />;
+  const protocol = data.evaluation_protocol;
+  const test = data.controlled_test;
+  const checks = test.behavior_checks;
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-5">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold mb-2">
-          Frozen temporal protocol • metrics served from the evaluation artifact
-        </div>
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Offline Model Evaluation & Benchmark Metrics
-        </h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Validation model comparison plus the single frozen controlled-test result for the selected model.
+      <header className="border-b border-slate-200 pb-4 dark:border-slate-800">
+        <h1 className="text-2xl font-extrabold tracking-tight">Offline evaluation</h1>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+          Validation results were used for model selection; the selected hybrid then had one controlled test pass. Primary K is 10; K = 20
+          is secondary. Relevance is the derived proxy {String(protocol.target_threshold)}, not an explicit like label.
         </p>
-      </div>
+      </header>
 
-      {/* Dataset & Protocol Card */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm transition-colors">
-        <h2 className="text-base font-bold text-slate-900 dark:text-white mb-4">Scientific Protocol Parameters</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm font-mono">
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800">
-            <span className="text-xs text-slate-500 dark:text-slate-400 block">Training Partition</span>
-            <strong className="text-slate-900 dark:text-slate-100 font-bold">{data.evaluation_protocol?.training_split}</strong>
-          </div>
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800">
-            <span className="text-xs text-slate-500 dark:text-slate-400 block">Validation Holdout</span>
-            <strong className="text-slate-900 dark:text-slate-100 font-bold">{data.evaluation_protocol?.validation_split}</strong>
-          </div>
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800">
-            <span className="text-xs text-slate-500 dark:text-slate-400 block">Test Holdout</span>
-            <strong className="text-slate-900 dark:text-slate-100 font-bold">{data.evaluation_protocol?.test_split}</strong>
-          </div>
-          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800">
-            <span className="text-xs text-slate-500 dark:text-slate-400 block">Positive Event Target</span>
-            <strong className="text-slate-900 dark:text-slate-100 font-bold">{data.evaluation_protocol?.target_threshold}</strong>
-          </div>
-        </div>
-      </div>
+      <section
+        aria-labelledby="protocol-heading"
+        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      >
+        <h2 id="protocol-heading" className="text-base font-bold">
+          Validation / test split summary
+        </h2>
+        <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ['Train', protocol.training_split],
+            ['Validation', protocol.validation_split],
+            ['Test', protocol.test_split],
+            ['Relevance', protocol.target_threshold],
+            ['Candidates', protocol.candidate_pool],
+            ['Users', Number(protocol.evaluation_users_count).toLocaleString('en-US')],
+            ['Catalog', Number(protocol.catalog_size).toLocaleString('en-US')],
+            ['Split seed', protocol.seed],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+              <dt className="text-xs text-slate-500 dark:text-slate-400">{label}</dt>
+              <dd className="font-mono font-semibold">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-3 text-xs text-slate-600 dark:text-slate-400">{String(protocol.metric_denominator_policy)}</p>
+      </section>
 
-      {/* Primary Model Comparison Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Comparative Model Performance (Top-10 and Top-20)</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Primary Top-K value is 10. Secondary results reported at K=20.</p>
-        </div>
-
-        <div className="overflow-x-auto">
+      <section
+        aria-labelledby="validation-heading"
+        className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      >
+        <h2 id="validation-heading" className="p-5 pb-0 text-base font-bold">
+          Validation comparison (model selection)
+        </h2>
+        <div className="overflow-x-auto p-5">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300 font-mono">
+            <thead className="border-b border-slate-200 font-mono text-xs uppercase text-slate-600 dark:border-slate-700 dark:text-slate-300">
               <tr>
-                <th className="px-5 py-3">Algorithm</th>
-                <th className="px-5 py-3">Recall@10</th>
-                <th className="px-5 py-3">Recall@20</th>
-                <th className="px-5 py-3">NDCG@10</th>
-                <th className="px-5 py-3">NDCG@20</th>
-                <th className="px-5 py-3">Hit Rate@10</th>
-                <th className="px-5 py-3">Precision@10</th>
-                <th className="px-5 py-3">Coverage</th>
+                <th scope="col" className="py-2 pr-4">
+                  Model
+                </th>
+                {COLUMNS.map((c) => (
+                  <th scope="col" key={c.key} className={`py-2 pr-4 ${c.primary ? '' : 'text-slate-400'}`}>
+                    {c.label}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-mono">
-              {data.overall_metrics?.map((model: any) => {
-                const m = model.metrics || model;
-                const modelId = model.id || model.model_id;
-                const modelName = model.name || model.model_name || modelId;
-                const isBest = modelId === 'hybrid-validation-selected-v1';
-                return (
-                  <tr key={modelId} className={isBest ? 'bg-indigo-50/60 dark:bg-indigo-950/40 font-semibold' : 'hover:bg-slate-50/50 dark:hover:bg-slate-800/40'}>
-                    <td className="px-5 py-3.5 font-sans">
-                      <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                        {modelName}
-                        {isBest && (
-                          <span className="text-[10px] bg-indigo-600 text-white font-mono px-1.5 py-0.5 rounded">
-                            SELECTED
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">{modelId}</span>
+            <tbody className="divide-y divide-slate-100 font-mono dark:divide-slate-800">
+              {data.validation_metrics.map((m) => (
+                <tr key={m.id} className={m.status === 'selected' ? 'bg-indigo-50 dark:bg-indigo-950/40' : ''}>
+                  <th scope="row" className="py-2 pr-4 font-sans font-semibold">
+                    {m.name} <span className="ml-1 rounded bg-slate-200 px-1 text-[10px] uppercase dark:bg-slate-700">{m.status}</span>
+                  </th>
+                  {COLUMNS.map((c) => (
+                    <td key={c.key} className="py-2 pr-4">
+                      {c.key === 'catalog_coverage' ? `${(m.metrics[c.key] * 100).toFixed(1)}%` : m.metrics[c.key].toFixed(4)}
                     </td>
-                    <td className="px-5 py-3.5 text-slate-800 dark:text-slate-200">{m.recall_at_10.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{m.recall_at_20.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-800 dark:text-slate-200">{m.ndcg_at_10.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-600 dark:text-slate-400">{m.ndcg_at_20.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-800 dark:text-slate-200">{m.hit_rate_at_10.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-800 dark:text-slate-200">{m.precision_at_10.toFixed(4)}</td>
-                    <td className="px-5 py-3.5 text-slate-800 dark:text-slate-200">{(m.catalog_coverage * 100).toFixed(1)}%</td>
-                  </tr>
-                );
-              })}
+                  ))}
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
 
-      {data.controlled_test && (
-        <section className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Frozen controlled test · {data.controlled_test.model_id}</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">One held-out evaluation after model selection; {data.controlled_test.users_metric_eligible} of {data.evaluation_protocol?.evaluation_users_count} users had an eligible relevant test item.</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 text-sm font-mono">
-            {[
-              ['Recall@10', data.controlled_test.recall_at_10],
-              ['NDCG@10', data.controlled_test.ndcg_at_10],
-              ['Hit Rate@10', data.controlled_test.hit_rate_at_10],
-              ['Catalog coverage', data.controlled_test.catalog_coverage],
-            ].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-slate-50 dark:bg-slate-800/60 p-3"><span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span><strong>{Number(value).toFixed(4)}</strong></div>)}
-          </div>
-        </section>
-      )}
+      <Bars data={data} />
 
-      {/* Selected hybrid configuration */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800">
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Selected hybrid configuration</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            The selected model manifest assigns zero weight to the evaluated LightGCN extension.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-5 text-sm font-mono">
-          {(() => {
-            const selected = data.overall_metrics?.find((model: any) => (model.id || model.model_id) === 'hybrid-validation-selected-v1');
-            const weights = selected?.weights || {};
-            return [
-              ['Item-CF weight', weights.alpha_cf ?? 0.9],
-              ['LightGCN weight', weights.beta_extension ?? 0.0],
-              ['Popularity weight', weights.gamma_popularity ?? 0.1],
-            ].map(([label, value]) => (
-              <div key={String(label)} className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
-                <span className="block text-xs text-slate-500 dark:text-slate-400">{label}</span>
-                <strong className="text-lg text-slate-900 dark:text-slate-100">{Number(value).toFixed(2)}</strong>
-              </div>
-            ));
-          })()}
-        </div>
-      </div>
+      <section
+        aria-labelledby="test-heading"
+        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+      >
+        <h2 id="test-heading" className="text-base font-bold">
+          Controlled test pass · {MODEL_LABELS[test.model_id] ?? test.model_id}
+        </h2>
+        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+          {test.users_metric_eligible.toLocaleString('en-US')} of {Number(protocol.evaluation_users_count).toLocaleString('en-US')} users
+          had an eligible relevant test item ({(test.all_user_evaluation_coverage * 100).toFixed(1)}% evaluation coverage). Runtime{' '}
+          {test.runtime_seconds.toFixed(1)} s on {test.runtime_environment.platform}.
+        </p>
+        <dl className="mt-4 grid grid-cols-2 gap-3 font-mono text-sm md:grid-cols-4">
+          {COLUMNS.map((c) => (
+            <div key={c.key} className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800/60">
+              <dt className="font-sans text-xs text-slate-500 dark:text-slate-400">{c.label}</dt>
+              <dd className="font-semibold">
+                {c.key === 'catalog_coverage' ? `${(test[c.key] * 100).toFixed(1)}%` : test[c.key].toFixed(4)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <h3 className="mt-5 text-sm font-bold">Cold-start and seen-item checks</h3>
+        <ul className="mt-2 list-disc pl-5 text-xs text-slate-700 dark:text-slate-300">
+          <li>
+            Users without positive pre-test history: {String(checks.users_without_positive_pretest_history)} — served by the popularity
+            fallback.
+          </li>
+          <li>Known-user recommendation coverage: {(Number(checks.known_user_recommendation_coverage) * 100).toFixed(0)}%.</li>
+          <li>
+            Seen-item violations: {String(checks.seen_item_violations)}; duplicate recommendations:{' '}
+            {String(checks.duplicate_recommendations)}.
+          </li>
+          <li>Unknown users: {String(checks.unknown_user_test_population)} — handled at serving time by the cold-start fallback.</li>
+        </ul>
+      </section>
     </div>
   );
 }

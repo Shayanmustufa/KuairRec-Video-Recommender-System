@@ -1,130 +1,127 @@
-import { 
-  RecommendationResponse, 
-  ModelManifest, 
-  CompareResponse, 
+import type {
+  CompareResponse,
   DemoUser,
-  VideoItem,
+  FeedbackAction,
+  ModelManifest,
+  OfflineMetrics,
+  ReadyResponse,
+  RecommendationRequest,
+  RecommendationResponse,
   SimilarItem,
+  TelemetrySnapshot,
+  UserDetail,
+  VideoItem,
 } from '@/types';
 
-const API_BASE = typeof window !== 'undefined' ? '' : (process.env.API_INTERNAL_URL || 'http://127.0.0.1:8080');
+export const DEFAULT_TIMEOUT_MS = 8000;
 
-export async function fetchRecommendations(
-  userId: string, 
-  topK: number = 10, 
-  excludeSeen: boolean = true
-): Promise<RecommendationResponse> {
-  const res = await fetch(`${API_BASE}/api/v1/recommendations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      user_id: userId,
-      top_k: topK,
-      exclude_seen: excludeSeen,
-    }),
-    cache: 'no-store',
-  });
+export type ApiErrorKind = 'timeout' | 'unavailable' | 'http';
 
-  if (!res.ok) {
-    const errorBody = await res.text();
-    throw new Error(`Failed to fetch recommendations (${res.status}): ${errorBody}`);
+/** ApiError separates timeouts, an unreachable backend and HTTP errors so the
+ * UI can show the correct state (WBS Day 9). */
+export class ApiError extends Error {
+  constructor(
+    public readonly kind: ApiErrorKind,
+    message: string,
+    public readonly status?: number,
+    public readonly requestId?: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
   }
-
-  return res.json();
 }
 
-export async function postFeedback(
-  userId: string, 
-  itemId: string, 
-  action: 'click' | 'play' | 'skip' | 'hide',
-  modelId: string
-): Promise<{ status: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/feedback`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      user_id: userId,
-      item_id: itemId,
-      action: action,
-      model_id: modelId,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error('Failed to record feedback');
+export function describeError(error: unknown): { title: string; detail: string } {
+  if (error instanceof ApiError) {
+    switch (error.kind) {
+      case 'timeout':
+        return { title: 'The API did not respond in time', detail: error.message };
+      case 'unavailable':
+        return { title: 'Backend unavailable', detail: 'The recommendation API could not be reached. Check that the Go API is running.' };
+      default:
+        return {
+          title: `Request failed (HTTP ${error.status})`,
+          detail: error.requestId ? `${error.message} — request ID ${error.requestId}` : error.message,
+        };
+    }
   }
-
-  return res.json();
+  return { title: 'Unexpected error', detail: error instanceof Error ? error.message : String(error) };
 }
 
-export async function fetchModelManifest(): Promise<ModelManifest> {
-  const res = await fetch(`${API_BASE}/api/v1/models/current`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch model manifest');
-  return res.json();
-}
-
-export async function switchActiveModel(modelId: string): Promise<{ status: string; current_model: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/models/switch`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model_id: modelId }),
-  });
-  if (!res.ok) throw new Error('Failed to switch model');
-  return res.json();
-}
-
-export async function fetchComparison(userId: string, topK: number = 5): Promise<CompareResponse> {
-  const res = await fetch(`${API_BASE}/api/v1/compare?user_id=${encodeURIComponent(userId)}&top_k=${topK}`, {
-    cache: 'no-store',
-  });
-  if (!res.ok) throw new Error('Failed to fetch model comparison');
-  return res.json();
-}
-
-export async function fetchDemoUsers(): Promise<DemoUser[]> {
-  const res = await fetch(`${API_BASE}/api/v1/users`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch demo users');
-  const data = await res.json();
-  return data.users;
-}
-
-export async function fetchVideoDetails(videoId: string): Promise<VideoItem> {
-  const res = await fetch(`${API_BASE}/api/v1/videos/${videoId}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`Video not found: ${videoId}`);
-  return res.json();
-}
-
-export async function fetchSimilarItems(videoId: string, topK = 5): Promise<SimilarItem[]> {
-  const res = await fetch(`${API_BASE}/api/v1/videos/${encodeURIComponent(videoId)}/similar?top_k=${topK}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error(`Failed to load similar videos (${res.status})`);
-  const data = await res.json();
-  return data.similar_items;
-}
-
-export async function fetchOfflineMetrics(): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/v1/metrics/offline`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch offline metrics');
-  return res.json();
-}
-
-export async function checkHealth(): Promise<{ status: string; latency: number }> {
-  const start = Date.now();
+async function request<T>(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE}/healthz`, { cache: 'no-store' });
-    const latency = Date.now() - start;
-    if (res.ok) return { status: 'healthy', latency };
-    return { status: 'degraded', latency };
-  } catch {
+    res = await fetch(path, {
+      cache: 'no-store',
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init.headers || {}) },
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new ApiError('timeout', `No response after ${Math.round(timeoutMs / 1000)} s`);
+    }
+    throw new ApiError('unavailable', err instanceof Error ? err.message : 'Network error');
+  } finally {
+    clearTimeout(timer);
+  }
+  const requestId = res.headers.get('X-Request-ID') ?? undefined;
+  if (!res.ok) {
+    let message = res.statusText || 'Request failed';
+    try {
+      const body = await res.json();
+      if (body && typeof body.error === 'string') message = body.error;
+    } catch {
+      /* non-JSON error body */
+    }
+    // Every Go API response carries X-Request-ID; a 5xx without it comes from
+    // the Next.js proxy, which means the API process could not be reached.
+    const proxyFailure = res.status >= 500 && !requestId;
+    throw new ApiError(proxyFailure ? 'unavailable' : 'http', message, res.status, requestId);
+  }
+  return (await res.json()) as T;
+}
+
+export function fetchRecommendations(body: RecommendationRequest): Promise<RecommendationResponse> {
+  return request('/api/v1/recommendations', { method: 'POST', body: JSON.stringify(body) });
+}
+
+export function postFeedback(userId: string, itemId: string, action: FeedbackAction, modelId: string, rank?: number) {
+  return request<{ status: string }>('/api/v1/feedback', {
+    method: 'POST',
+    body: JSON.stringify({ user_id: userId, item_id: itemId, action, model_id: modelId, rank }),
+  });
+}
+
+export const fetchModelManifest = () => request<ModelManifest>('/api/v1/models/current');
+
+export const fetchComparison = (userId: string, topK = 5) =>
+  request<CompareResponse>(`/api/v1/compare?user_id=${encodeURIComponent(userId)}&top_k=${topK}`);
+
+export const fetchDemoUsers = async (): Promise<DemoUser[]> => (await request<{ users: DemoUser[] }>('/api/v1/users')).users;
+
+export const fetchUser = (userId: string) => request<UserDetail>(`/api/v1/users/${encodeURIComponent(userId)}`);
+
+export const fetchVideoDetails = (videoId: string) => request<VideoItem>(`/api/v1/videos/${encodeURIComponent(videoId)}`);
+
+export const fetchSimilarItems = async (videoId: string, topK = 5): Promise<SimilarItem[]> =>
+  (await request<{ similar_items: SimilarItem[] }>(`/api/v1/videos/${encodeURIComponent(videoId)}/similar?top_k=${topK}`)).similar_items;
+
+export const fetchOfflineMetrics = () => request<OfflineMetrics>('/api/v1/metrics/offline');
+
+export const fetchTelemetry = () => request<TelemetrySnapshot>('/metrics-api');
+
+export const fetchReadiness = () => request<ReadyResponse>('/readyz', {}, 4000);
+
+export async function checkHealth(): Promise<{ status: 'healthy' | 'degraded' | 'unreachable'; latency: number }> {
+  const start = performance.now();
+  try {
+    await request('/healthz', {}, 4000);
+    return { status: 'healthy', latency: Math.round(performance.now() - start) };
+  } catch (err) {
+    if (err instanceof ApiError && err.kind === 'http') return { status: 'degraded', latency: -1 };
     return { status: 'unreachable', latency: -1 };
-  }
-}
-
-export async function fetchTelemetryMetrics(): Promise<any> {
-  try {
-    const res = await fetch(`${API_BASE}/metrics-api`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    return res.json();
-  } catch {
-    return null;
   }
 }

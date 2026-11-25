@@ -35,9 +35,7 @@ export const ThemeToggle: React.FC = () => {
   };
 
   if (!mounted) {
-    return (
-      <div className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />
-    );
+    return <div className="w-9 h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800" />;
   }
 
   return (
@@ -47,11 +45,7 @@ export const ThemeToggle: React.FC = () => {
       title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
       className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
     >
-      {theme === 'light' ? (
-        <Moon className="w-4 h-4 text-slate-700" />
-      ) : (
-        <Sun className="w-4 h-4 text-amber-400" />
-      )}
+      {theme === 'light' ? <Moon className="w-4 h-4 text-slate-700" /> : <Sun className="w-4 h-4 text-amber-400" />}
     </button>
   );
 };

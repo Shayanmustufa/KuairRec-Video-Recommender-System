@@ -1,6 +1,11 @@
+# KuaiRec demo stack: PostgreSQL + Go API + Next.js.
+# Usage (from backend-frontend/):  cp .env.example .env  # then set POSTGRES_PASSWORD
+#                                  docker compose up --build -d
+name: kuairec
+
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.6-alpine3.20
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-kuairec}
       POSTGRES_USER: ${POSTGRES_USER:-kuairec}
@@ -8,45 +13,39 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kuairec} -d ${POSTGRES_DB:-kuairec}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   backend:
+    image: kuairec-backend:1.0.0
     build:
       context: ./backend
-      dockerfile: Dockerfile
-    container_name: kuairec-backend
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     environment:
-      - PORT=8080
-      - DATA_DIR=/app/serving_data
-      - DATABASE_URL=postgres://${POSTGRES_USER:-kuairec}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in backend-frontend/.env}@postgres:5432/${POSTGRES_DB:-kuairec}?sslmode=disable
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
-      - DEFAULT_TOP_K=10
+      PORT: "8080"
+      DATA_DIR: /app/serving_data
+      DATABASE_URL: postgres://${POSTGRES_USER:-kuairec}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kuairec}?sslmode=disable
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-300}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/healthz || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 5s
 
   frontend:
+    image: kuairec-frontend:1.0.0
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-    container_name: kuairec-frontend
+      args:
+        API_INTERNAL_URL: http://backend:8080
     ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - API_INTERNAL_URL=http://backend:8080
+      - "${WEB_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_healthy

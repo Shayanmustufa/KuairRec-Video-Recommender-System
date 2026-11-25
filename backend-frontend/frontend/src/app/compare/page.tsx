@@ -1,202 +1,166 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { fetchComparison, fetchDemoUsers } from '@/lib/api';
-import { CompareResponse, DemoUser } from '@/types';
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { fetchComparison, fetchDemoUsers, fetchModelManifest } from '@/lib/api';
+import type { CompareResponse, DemoUser, ModelManifest } from '@/types';
 import { ReasonBadge } from '@/components/ReasonBadge';
+import { EmptyState, ErrorState, Loading } from '@/components/States';
+import { MODEL_LABELS, videoTitle } from '@/lib/format';
+
+const STATUS_BADGE: Record<string, string> = {
+  selected: 'bg-indigo-600 text-white',
+  baseline: 'bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100',
+  rejected: 'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-100',
+};
 
 export default function ComparePage() {
   const [users, setUsers] = useState<DemoUser[]>([]);
-  const [selectedUser, setSelectedUser] = useState<string>('');
-  const [topK, setTopK] = useState<number>(5);
+  const [manifest, setManifest] = useState<ModelManifest | null>(null);
+  const [userId, setUserId] = useState('');
+  const [topK, setTopK] = useState(5);
   const [data, setData] = useState<CompareResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [token, setToken] = useState(0);
 
-  useEffect(() => {
-    fetchDemoUsers().then((loaded) => {
-      setUsers(loaded);
-      const initial = loaded.find((user) => user.interaction_count > 0) || loaded[0];
-      if (initial) setSelectedUser(initial.user_id);
-    }).catch((err) => setError(err.message || 'Failed to fetch users'));
-  }, []);
-
-  useEffect(() => {
-    async function loadCompare() {
-      if (!selectedUser) return;
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetchComparison(selectedUser, topK);
-        setData(res);
-      } catch (err: any) {
-        setError(err.message || 'Failed to fetch comparison');
-      } finally {
+  const init = useCallback(() => {
+    setError(null);
+    Promise.all([fetchDemoUsers(), fetchModelManifest()])
+      .then(([list, m]) => {
+        setUsers(list);
+        setManifest(m);
+        setUserId((cur) => cur || list.find((u) => u.status === 'known')?.user_id || list[0]?.user_id || '');
+      })
+      .catch((err) => {
+        setError(err);
         setLoading(false);
-      }
-    }
-    loadCompare();
-  }, [selectedUser, topK]);
+      });
+  }, []);
+  useEffect(init, [init]);
 
-  const modelColumns = [
-    {
-      id: 'popularity-positive-event-count-v1',
-      title: 'Popularity Baseline',
-      badge: 'Unpersonalized',
-      badgeColor: 'bg-slate-100 text-slate-800 border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700',
-      description: 'Global exposure and completion volume. Used as universal cold-start fallback.',
-    },
-    {
-      id: 'item-cf-cosine-v1',
-      title: 'Item-Based CF',
-      badge: 'Collaborative',
-      badgeColor: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-800',
-      description: 'Shrunk cosine similarity over user interaction vectors with already-seen filtering.',
-    },
-    {
-      id: 'lightgcn-validation-selected-v1',
-      title: 'LightGCN Graph',
-      badge: 'Graph Neural Net',
-      badgeColor: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800',
-      description: 'Evaluated extension experiment; it was rejected and receives zero weight in the selected model.',
-    },
-    {
-      id: 'hybrid-validation-selected-v1',
-      title: 'Validation Hybrid',
-      badge: 'Proposed Best',
-      badgeColor: 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950 dark:text-indigo-200 dark:border-indigo-800',
-      description: 'Selected validation-tuned ranker: 90% Item-CF + 10% popularity + 0% LightGCN.',
-    },
-  ];
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchComparison(userId, topK)
+      .then((res) => !cancelled && setData(res))
+      .catch((err) => !cancelled && setError(err))
+      .finally(() => !cancelled && setLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, topK, token]);
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-5">
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-          Algorithm Comparison Matrix
-        </h1>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-          Compare recommendation rankings across all four models for the exact same user and candidate universe.
+      <header className="border-b border-slate-200 pb-4 dark:border-slate-800">
+        <h1 className="text-2xl font-extrabold tracking-tight">Model comparison</h1>
+        <p className="mt-1 max-w-3xl text-sm text-slate-600 dark:text-slate-400">
+          Popularity, Item-CF, the LightGCN extension and the selected hybrid for the same user and the same candidate set: the
+          validation-time lists ranked from training history only, over the full eligible catalog minus training-seen items.
         </p>
-      </div>
+      </header>
 
-      {/* Control Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 shadow-sm transition-colors">
-        <div className="flex items-center gap-3">
-          <label className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Target User:</label>
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="compare-user" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+            User
+          </label>
           <select
-            value={selectedUser}
-            onChange={(e) => setSelectedUser(e.target.value)}
-            className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            id="compare-user"
+            value={userId}
+            onChange={(e) => setUserId(e.target.value)}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
           >
             {users.map((u) => (
               <option key={u.user_id} value={u.user_id}>
-                {u.user_id} ({u.is_cold_start ? 'Cold Start' : u.history_available === false ? 'known evaluation user' : `${u.interaction_count} past events`})
+                {u.user_id} ({u.status === 'known' ? `${u.positive_history_items} positive events` : 'no positive history'})
               </option>
             ))}
           </select>
         </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">Items Per Model:</span>
-          {[3, 5, 10].map((k) => (
-            <button
-              key={k}
-              onClick={() => setTopK(k)}
-              className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
-                topK === k
-                  ? 'bg-slate-900 dark:bg-indigo-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              {k}
-            </button>
-          ))}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="compare-k" className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+            Items per model
+          </label>
+          <select
+            id="compare-k"
+            value={topK}
+            onChange={(e) => setTopK(Number(e.target.value))}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+          >
+            {[3, 5, 10, 20].map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
         </div>
+        <button
+          type="button"
+          onClick={() => setToken((n) => n + 1)}
+          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-semibold hover:bg-slate-100 dark:border-slate-700 dark:hover:bg-slate-800"
+        >
+          Refresh
+        </button>
       </div>
 
-      {error && (
-        <div className="p-4 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-lg text-rose-800 dark:text-rose-200 text-sm">
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <div className="py-16 text-center text-slate-500 dark:text-slate-400 font-mono animate-pulse">
-          Computing candidate projections across 4 models for {selectedUser}...
-        </div>
-      ) : data ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {modelColumns.map((col) => {
-            const modelResp = data.models[col.id];
-            const items = modelResp?.recommendations || [];
-
+      {error ? (
+        <ErrorState error={error} onRetry={() => (users.length ? setToken((n) => n + 1) : init())} />
+      ) : loading || !data ? (
+        <Loading label={`Loading comparison for user ${userId || '…'}`} />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {(manifest?.models ?? []).map((meta) => {
+            const column = data.models[meta.id];
             return (
-              <div
-                key={col.id}
-                className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between overflow-hidden transition-colors"
+              <section
+                key={meta.id}
+                aria-labelledby={`col-${meta.id}`}
+                className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900"
               >
-                <div>
-                  {/* Column Header */}
-                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${col.badgeColor}`}>
-                        {col.badge}
-                      </span>
-                      {modelResp?.fallback && (
-                        <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950 px-1.5 py-0.5 rounded">
-                          Fallback
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="font-extrabold text-base text-slate-900 dark:text-white mt-2">{col.title}</h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{col.description}</p>
-                  </div>
-
-                  {/* Recommendations List */}
-                  <div className="p-4 space-y-3">
-                    {items.map((it, idx) => (
-                      <div
-                        key={it.item_id}
-                        className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 hover:bg-white dark:hover:bg-slate-850 hover:border-indigo-200 dark:hover:border-indigo-800 transition space-y-2"
-                      >
+                <header className="border-b border-slate-100 p-4 dark:border-slate-800">
+                  <span
+                    className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase ${STATUS_BADGE[meta.status] ?? STATUS_BADGE.baseline}`}
+                  >
+                    {meta.status}
+                  </span>
+                  <h2 id={`col-${meta.id}`} className="mt-2 text-base font-extrabold">
+                    {MODEL_LABELS[meta.id] ?? meta.name}
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{meta.description}</p>
+                  <p className="mt-1 font-mono text-[11px] text-slate-500">val NDCG@10 {meta.metrics.ndcg_at_10.toFixed(4)}</p>
+                </header>
+                <ol className="space-y-3 p-4">
+                  {column?.recommendations.length ? (
+                    column.recommendations.map((item) => (
+                      <li key={item.item_id} className="space-y-2 rounded-lg border border-slate-100 p-3 dark:border-slate-800">
                         <div className="flex items-start justify-between gap-2">
-                          <span className="w-5 h-5 rounded-full bg-slate-800 dark:bg-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shrink-0">
-                            {idx + 1}
-                          </span>
-                          <div className="flex-1 min-w-0">
-                            <span className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 block">
-                              {it.video?.category || 'General'}
-                            </span>
-                            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                              {it.video?.title || it.item_id}
-                            </h4>
-                          </div>
-                          <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-300 shrink-0">
-                            {it.score.toFixed(3)}
-                          </span>
+                          <span className="text-xs font-bold">#{item.rank}</span>
+                          <Link
+                            href={`/videos/${encodeURIComponent(item.item_id)}`}
+                            className="min-w-0 flex-1 truncate text-xs font-semibold hover:underline"
+                          >
+                            {videoTitle(item)}
+                          </Link>
+                          <span className="font-mono text-[11px]">{item.score.toFixed(3)}</span>
                         </div>
-
-                        {/* Top Reason */}
-                        {it.reasons.length > 0 && (
-                          <div className="pt-1">
-                            <ReasonBadge reason={it.reasons[0]} />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 text-[11px] text-slate-500 dark:text-slate-400 font-mono text-center">
-                  Model Key: {col.id}
-                </div>
-              </div>
+                        {item.reasons[0] && <ReasonBadge reason={item.reasons[0]} />}
+                      </li>
+                    ))
+                  ) : (
+                    <li>
+                      <EmptyState>{column?.empty_reason ?? 'No results.'}</EmptyState>
+                    </li>
+                  )}
+                </ol>
+              </section>
             );
           })}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
