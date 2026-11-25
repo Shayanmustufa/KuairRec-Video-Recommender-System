@@ -21,3 +21,23 @@ data/processed/*
 .deck-src/
 model/artifacts/*
 !model/artifacts/.gitkeep
+
+# Local environments, editor state and media
+venv/
+.env.*
+!.env.example
+!.env.template
+.local-tools/
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+*.log
+.pytest_cache/
+.mypy_cache/
+coverage/
+*.pt
+*.mp4
+*.webm
+*.mov
+*.m4v
